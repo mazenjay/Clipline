@@ -142,7 +142,7 @@ struct ClipboardHistoryItem: @unchecked Sendable {
     var contents: [ClipboardHistoryContent] = []
     
     init(id: Int64? = nil,
-         historyId: Int64,
+         historyId: Int64 = -1,
          itemIndex: Int64 = 0,
          contents: [ClipboardHistoryContent] = []) {
         self.id = id
@@ -187,7 +187,7 @@ struct ClipboardHistoryContent: @unchecked Sendable {
     var priority: Int64
     
     init(id: Int64? = nil,
-         itemId: Int64,
+         itemId: Int64 = -1,
          type: String,
          content: Data,
          priority: Int64 = 0) {

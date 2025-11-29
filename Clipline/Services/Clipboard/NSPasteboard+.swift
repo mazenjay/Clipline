@@ -1,0 +1,645 @@
+//
+//  NSPasteboard+.swift
+//  Clipline
+//
+//  Created by mazhj on 2025/11/30.
+//
+
+import AppKit
+import CryptoKit
+import Foundation
+import PDFKit
+import QuickLookThumbnailing
+import UniformTypeIdentifiers
+
+// MARK: expand dyn type
+extension NSPasteboard.PasteboardType {
+    
+    static let ignore = NSPasteboard.PasteboardType("dyn.clipline.marker.ignore")
+    
+    static let remote = NSPasteboard.PasteboardType("")
+    
+    static let mixture = NSPasteboard.PasteboardType("dyn.clipline.marker.mixture")
+    
+    static let unknown = NSPasteboard.PasteboardType("dyn.clipline.marker.unknown")
+    
+    
+    func isText() -> Bool {
+        if self.rawValue == NSPasteboard.PasteboardType.string.rawValue {
+            return true
+        }
+
+        guard let utType = UTType(self.rawValue) else {
+            return false
+        }
+
+        if utType.conforms(to: .text) || utType.conforms(to: .tiff)
+            || utType.conforms(to: .html)
+        {
+            return true
+        }
+
+        return false
+    }
+
+    func isFile() -> Bool {
+        if self.rawValue == NSPasteboard.PasteboardType.fileURL.rawValue {
+            return true
+        }
+
+        guard let utType = UTType(self.rawValue) else {
+            return false
+        }
+
+        if utType.conforms(to: .fileURL) || utType.conforms(to: .folder) {
+            return true
+        }
+
+        return false
+
+    }
+    
+    func isMixture() -> Bool {
+        return NSPasteboard.PasteboardType.mixture.rawValue == self.rawValue
+    }
+    
+    func hasImage() -> Bool {
+        if self.rawValue == NSPasteboard.PasteboardType.fileURL.rawValue || self.rawValue == NSPasteboard.PasteboardType.png.rawValue {
+            return true
+        }
+        
+        guard let utType = UTType(self.rawValue) else {
+            return false
+        }
+
+        if utType.conforms(to: .fileURL) || utType.conforms(to: .image) {
+            return true
+        }
+        
+        return false
+
+    }
+    
+    func isImage() -> Bool {
+        if self.rawValue == NSPasteboard.PasteboardType.png.rawValue {
+            return true
+        }
+        
+        guard let utType = UTType(self.rawValue) else {
+            return false
+        }
+
+        if utType.conforms(to: .image) {
+            return true
+        }
+        
+        return false
+        
+    }
+}
+
+extension NSPasteboard {
+    
+    static let typePriority: [NSPasteboard.PasteboardType] = [
+        .png,
+        .fileURL,
+        .pdf,
+        .string,
+        .html,
+        .rtf,
+    ]
+    
+    // MARK: parsed clipboard content
+    struct PasteboardContent: Encodable {
+        let type: NSPasteboard.PasteboardType
+        let content: Data
+
+        enum CodingKeys: String, CodingKey {
+            case type, content
+        }
+
+        func encode(to encoder: Encoder) throws {
+            var container = encoder.container(keyedBy: CodingKeys.self)
+            try container.encode(type.rawValue, forKey: .type)
+            try container.encode(
+                content.base64EncodedString(),
+                forKey: .content
+            )
+        }
+    }
+    
+    struct ParsedResult: Encodable {
+        let contents: [[PasteboardContent]]
+        let mainCategory: String
+        let showContent: String
+
+        enum CodingKeys: String, CodingKey {
+            case contents
+            case mainCategory = "main_category"
+            case showContent = "show_content"
+        }
+
+        func encode(to encoder: Encoder) throws {
+            var container = encoder.container(keyedBy: CodingKeys.self)
+            try container.encode(contents, forKey: .contents)
+            try container.encode(mainCategory, forKey: .mainCategory)
+            try container.encode(showContent, forKey: .showContent)
+        }
+
+        var hash: String? {
+            do {
+                let jsonData = try JSONEncoder().encode(self)
+                if let jsonString = String(data: jsonData, encoding: .utf8) {
+                    print("JSON For Hash:\n\(jsonString)")
+                }
+                let hash = SHA256.hash(data: jsonData)
+                return hash.map { String(format: "%02x", $0) }.joined()
+            } catch {
+                return nil
+            }
+        }
+    }
+}
+
+extension NSPasteboard {
+    
+    func writeToPasteboard(
+        items: [[PasteboardContent]],
+        ignored: Bool = true
+    ) {
+        self.clearContents()
+
+        var pasteboardItems: [NSPasteboardItem] = []
+        for hi in items {
+            let item = NSPasteboardItem()
+            item.setData(Data(), forType: .ignore)
+            for content in hi {
+                item.setData(content.content, forType: content.type)
+            }
+            pasteboardItems.append(item)
+        }
+
+        self.writeObjects(pasteboardItems)
+    }
+
+    func readFromPasteboard() -> ParsedResult? {
+        guard let pasteboardItems = self.pasteboardItems,
+            !pasteboardItems.isEmpty
+        else {
+            return nil
+        }
+        
+        var isMixture: Bool = false
+        var results: [[PasteboardContent]] = []
+        for (_, item) in pasteboardItems.enumerated() {
+
+            guard !item.types.contains(.ignore) else {
+                print("来自loga 忽略")
+                return nil
+            }
+            
+            if !isMixture && item.types.contains(.mixture) {
+                isMixture = true
+            }
+            
+            let availaleTypes = item.types
+            var contents: [PasteboardContent] = []
+
+            for type in Self.typePriority {
+                if availaleTypes.contains(type),
+                    let data = item.data(forType: type)
+                {
+                    let content = PasteboardContent(type: type, content: data)
+                    contents.append(content)
+                }
+            }
+
+            guard !contents.isEmpty else {
+                continue
+            }
+
+            results.append(contents)
+        }
+
+        guard !results.isEmpty else {
+            return nil
+        }
+
+        guard let firstItem = results.first,
+              let firstContent = firstItem.first else {
+            return nil
+        }
+        
+        let mainType = isMixture ? .mixture : firstContent.type
+        let contents = results.compactMap {
+            $0.first
+        }
+
+        return ParsedResult(
+            contents: results,
+            mainCategory: mainType.rawValue,
+            showContent: Self.preview(
+                for: contents,
+                maintype: mainType,
+            ) ?? "unknown"
+        )
+
+    }
+
+}
+
+// MARK: Preview clipboard content
+extension NSPasteboard {
+    
+    static func preview(for data: Data, with type: NSPasteboard.PasteboardType) -> String {
+        guard let utType = UTType(type.rawValue) else {
+            return "unknown (\(data.formatBytes()))"
+        }
+        
+        if utType.conforms(to: .image),
+            let image = NSImage(data: data) {
+            let formatName = utType.localizedDescription ?? "Image"
+            return "\(formatName) - \(Int(image.size.width)) × \(Int(image.size.height))"
+        }
+        
+        if utType.conforms(to: .fileURL),
+            let urlString = String(data: data, encoding: .utf8),
+            let url = URL(string: urlString) {
+            return url.lastPathComponent
+        }
+        
+        if utType.conforms(to: .pdf),
+            PDFDocument(data: data) != nil
+        {
+            return "PDFObject (\(data.formatBytes()))"
+        }
+        
+        if utType.conforms(to: .html) || utType.conforms(to: .rtf) {
+            let options:
+                [NSAttributedString.DocumentReadingOptionKey: Any] =
+                    utType.conforms(to: .html)
+                    ? [.documentType: NSAttributedString.DocumentType.html]
+                    : [.documentType: NSAttributedString.DocumentType.rtf]
+
+            if let attrString = try? NSAttributedString(
+                data: data,
+                options: options,
+                documentAttributes: nil
+            ) {
+                return attrString.string
+            }
+        }
+
+        if utType.conforms(to: .plainText) {
+            let text =
+                String(data: data, encoding: .utf8) ?? String(
+                    data: data,
+                    encoding: .utf16
+                ) ?? ""
+            return text
+        }
+
+        let typeDescription = utType.localizedDescription ?? type.rawValue
+        let formattedSize = data.formatBytes()
+        return "\(typeDescription) - \(formattedSize)"
+    }
+    
+    static func preview(for dataSlice: [Data], with type: String)
+        -> [String]
+    {
+
+        guard let utType = UTType(type) else {
+            return ["unknow (\(dataSlice.count))"]
+        }
+
+        var views: [String] = []
+
+        for data in dataSlice {
+            // 1. 图片 (Image)
+            if utType.conforms(to: .image) {
+                if let image = NSImage(data: data) {
+                    let formatName = utType.localizedDescription ?? "Image"
+                    views.append(
+                        "\(formatName) - \(Int(image.size.width)) × \(Int(image.size.height))"
+                    )
+                    continue
+                }
+            }
+
+            // 2. 文件路径 (File URL)
+            if utType.conforms(to: .fileURL) {
+                // 文件路径数据通常是 UTF-8 编码的字符串
+                if let urlString = String(data: data, encoding: .utf8),
+                    let url = URL(string: urlString)
+                {
+                    // 我们只关心文件名，而不是完整路径
+                    views.append("\(url.lastPathComponent)")
+                    continue
+                }
+            }
+
+            // 3. PDF 文档
+            if utType.conforms(to: .pdf),
+                PDFDocument(data: data) != nil
+            {
+                views.append("PDFObject (\(data.formatBytes()))")
+                continue
+            }
+
+            // 4. 富文本 (HTML & RTF)
+            // 我们尝试从中提取纯文本作为预览
+            if utType.conforms(to: .html) || utType.conforms(to: .rtf) {
+                let options:
+                    [NSAttributedString.DocumentReadingOptionKey: Any] =
+                        utType.conforms(to: .html)
+                        ? [.documentType: NSAttributedString.DocumentType.html]
+                        : [.documentType: NSAttributedString.DocumentType.rtf]
+
+                if let attrString = try? NSAttributedString(
+                    data: data,
+                    options: options,
+                    documentAttributes: nil
+                ) {
+                    views.append(attrString.string)
+                    continue
+                }
+            }
+
+            if utType.conforms(to: .plainText) {
+                let text =
+                    String(data: data, encoding: .utf8) ?? String(
+                        data: data,
+                        encoding: .utf16
+                    ) ?? ""
+                views.append(text)
+                continue
+            }
+
+            let typeDescription = utType.localizedDescription ?? type
+            let formattedSize = data.formatBytes()
+            views.append("\(typeDescription) - \(formattedSize)")
+        }
+
+        //        if utType.conforms(to: .fileURL) {
+        //            let str = views.joined(separator: ",")
+        //            return views.count > 1
+        //                ? "\(views.count) Files: \(str)" : "File: \(str)"
+        //        }
+
+        return views
+
+    }
+
+    static func preview(
+        for contents: [PasteboardContent],
+        maintype maintyp: NSPasteboard.PasteboardType = .mixture
+    ) -> String? {
+
+        guard !contents.isEmpty else {
+            return nil
+        }
+        
+        if maintyp != .mixture {
+            let unityps = Set(contents.compactMap {$0.type})
+            let firsttyp = unityps.first ?? .unknown
+            let views = preview(for: contents.compactMap {$0.content}, with: firsttyp.rawValue)
+            var showContent: String
+            if maintyp == .fileURL {
+                let str = views.joined(separator: ",")
+                showContent =
+                    views.count > 1
+                    ? "\(views.count) Files: \(str)" : "File: \(str)"
+            } else {
+                if unityps.count > 1 {
+                    return views.first
+                }
+                showContent = views.joined(separator: "\n")
+            }
+            return showContent
+        }
+
+        var views: [String] = []
+        
+        for content in contents {
+            let typ = content.type.rawValue
+            let data = content.content
+            
+            guard let utType = UTType(typ) else {
+                continue
+            }
+
+            if utType.conforms(to: .image) {
+                if let image = NSImage(data: data) {
+                    let formatName = utType.localizedDescription ?? "Image"
+                    views.append(
+                        "\(formatName) - \(Int(image.size.width)) × \(Int(image.size.height))"
+                    )
+                    continue
+                }
+            }
+
+            // 2. 文件路径 (File URL)
+            if utType.conforms(to: .fileURL) {
+                // 文件路径数据通常是 UTF-8 编码的字符串
+                if let urlString = String(data: data, encoding: .utf8),
+                    let url = URL(string: urlString)
+                {
+                    // 我们只关心文件名，而不是完整路径
+                    views.append("\(url.lastPathComponent)")
+                    continue
+                }
+            }
+
+            // 3. PDF 文档
+            if utType.conforms(to: .pdf),
+                PDFDocument(data: data) != nil
+            {
+                views.append("PDFObject (\(data.formatBytes()))")
+                continue
+            }
+
+            // 4. 富文本 (HTML & RTF)
+            // 我们尝试从中提取纯文本作为预览
+            if utType.conforms(to: .html) || utType.conforms(to: .rtf) {
+                let options:
+                    [NSAttributedString.DocumentReadingOptionKey: Any] =
+                        utType.conforms(to: .html)
+                        ? [.documentType: NSAttributedString.DocumentType.html]
+                        : [.documentType: NSAttributedString.DocumentType.rtf]
+
+                if let attrString = try? NSAttributedString(
+                    data: data,
+                    options: options,
+                    documentAttributes: nil
+                ) {
+                    views.append(attrString.string)
+                    continue
+                }
+            }
+
+            if utType.conforms(to: .plainText) {
+                let text =
+                    String(data: data, encoding: .utf8) ?? String(
+                        data: data,
+                        encoding: .utf16
+                    ) ?? ""
+                views.append(text)
+                continue
+            }
+
+            let typeDescription = utType.localizedDescription ?? typ
+            let formattedSize = data.formatBytes()
+            views.append("\(typeDescription) - \(formattedSize)")
+        }
+
+        return "Multi-part\n\(views.joined(separator: "\n"))"
+    }
+
+    static func preview(
+        for dataSlice: [Data],
+        with type: String,
+        size: NSSize
+    ) async
+        -> [NSImage?]
+    {
+        guard let utType = UTType(type) else {
+            return []
+        }
+
+        var images: [NSImage?] = []
+
+        for data in dataSlice {
+            if utType.conforms(to: .image) {
+                images.append(NSImage(data: data))
+                continue
+            }
+
+            if utType.conforms(to: .fileURL) {
+                guard let urlString = String(data: data, encoding: .utf8),
+                    let url = URL(string: urlString),
+                    url.isFileURL,
+                    FileManager.default.fileExists(atPath: url.path)
+                else {
+                    images.append(
+                        NSImage(
+                            systemSymbolName: "questionmark.diamond.fill",
+                            accessibilityDescription: "失效的文件链接"
+                        )
+                    )
+                    continue
+                }
+
+                let req = QLThumbnailGenerator.Request(
+                    fileAt: url,
+                    size: size,
+                    scale: NSScreen.main?.backingScaleFactor ?? 2.0,  // 适配 Retina 屏幕
+                    representationTypes: .thumbnail
+                )
+
+                let generator = QLThumbnailGenerator.shared
+
+                do {
+                    let representation =
+                        try await generator.generateBestRepresentation(for: req)
+                    images.append(representation.nsImage)
+                } catch {
+                    images.append(NSWorkspace.shared.icon(forFile: url.path))
+                }
+            }
+        }
+
+        return images
+    }
+    
+    static func preview(for data: Data, with type: String, limit size: NSSize = NSSize(width: 100, height: 100)) async -> NSImage? {
+        guard let utType = UTType(type) else {
+            return nil
+        }
+        
+        if utType.conforms(to: .image) {
+            return NSImage(data: data)
+        } else if utType.conforms(to: .fileURL) {
+        }
+        
+        guard utType.conforms(to: .fileURL),
+              let urlString = String(data: data, encoding: .utf8),
+              let url = URL(string: urlString),
+              url.isFileURL,
+              FileManager.default.fileExists(atPath: url.path)
+        else {
+            return nil
+        }
+        
+        let request = QLThumbnailGenerator.Request(
+                    fileAt: url,
+                    size: size,
+                    scale: NSScreen.main?.backingScaleFactor ?? 2.0,
+                    representationTypes: .all // 请求所有类型的预览，让系统决定最佳方案
+                )
+
+                let generator = QLThumbnailGenerator.shared
+
+                do {
+                    // 2. 异步生成最佳的预览表示
+                    let representation = try await generator.generateBestRepresentation(for: request)
+                    
+                    // 3. ✅ 关键改进：检查返回的是不是通用图标
+                    //    如果系统无法为该文件生成特定内容的缩略图，它会返回一个通用图标
+                    //    (例如，所有 .txt 文件都长一个样)。在这种情况下，我们更倾向于使用
+                    //    与 Finder 中完全一致的图标。
+                    if representation.type == .icon {
+                        // 如果是通用图标，我们回落到 NSWorkspace 获取更准确的 Finder 图标
+                        return NSWorkspace.shared.icon(forFile: url.path)
+                    } else {
+                        // 只有当它是一个真正的内容缩略图时，我们才使用它
+                        return representation.nsImage
+                    }
+                    
+                } catch {
+                    // 4. 如果生成过程抛出任何错误，回落到获取文件的标准图标
+                    print("生成缩略图失败 for \(url.lastPathComponent): \(error.localizedDescription)")
+                    return NSWorkspace.shared.icon(forFile: url.path)
+                }
+        
+    }
+    
+    static func preview(for data: Data) -> NSImage? {
+        guard let urlString = String(data: data, encoding: .utf8),
+              let url = URL(string: urlString),
+              url.isFileURL,
+              FileManager.default.fileExists(atPath: url.path)
+        else {
+            return NSImage(data: data)
+        }
+        
+        return previewFile(for: url)
+    }
+    
+    static func previewFile(for url: URL) -> NSImage? {
+        return NSWorkspace.shared.icon(forFile: url.path)
+    }
+    
+    
+    static func paste() {
+        let source = CGEventSource(stateID: .hidSystemState)
+        let keyVDown = CGEvent(
+            keyboardEventSource: source,
+            virtualKey: 0x09,
+            keyDown: true
+        )  // 0x09 is the key code for 'v'
+        keyVDown?.flags = .maskCommand
+        // Command 键松开
+        let keyVUp = CGEvent(
+            keyboardEventSource: source,
+            virtualKey: 0x09,
+            keyDown: false
+        )
+        keyVUp?.flags = .maskCommand
+
+        // 发送事件
+        let loc = CGEventTapLocation.cghidEventTap
+        keyVDown?.post(tap: loc)
+        keyVUp?.post(tap: loc)
+    }
+    
+}

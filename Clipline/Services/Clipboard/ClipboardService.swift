@@ -1,0 +1,97 @@
+//
+//  ClipboardService.swift
+//  Clipline
+//
+//  Created by mazhj on 2025/11/30.
+//
+
+import AppKit
+
+
+class ClipboardService {
+    
+    private let listener: ClipboardListener
+    
+    private let repo: ClipboardRepository
+    
+    init(repo: ClipboardRepository) throws {
+        self.repo = repo
+        self.listener = try ClipboardListener(repo: repo)
+        try listen()
+    }
+    
+    func listen() throws {
+        try listener.listen()
+    }
+    
+    func shutdown() throws {
+        try listener.shutdown()
+    }
+    
+    func fetchItems(keyword: String?, pageSize: Int = 30, page: Int = 0) -> (items: [ClipboardHistory], hasMore: Bool)? {
+        guard
+            let result = try? repo.search(
+                filter: ClipboardRepository.SearchFilter(keyword: keyword),
+                page: page
+            )
+
+        else {
+            return nil
+        }
+        
+        return (result.items, result.hasMore)
+
+    }
+    
+    func fetchContent(historyId: Int64) -> [ClipboardHistoryContent] {
+        guard let histories = try? repo.selectData(historyIds: [historyId]),
+              let histroy = histories.first else {
+            return []
+        }
+        
+        var contents: [ClipboardHistoryContent] = []
+        for item in histroy.items {
+            guard let content = item.contents.first else {
+                continue
+            }
+            contents.append(content)
+        }
+        
+        return contents
+    }
+    
+    func pasteItems(itemIds: [Int64]) {
+        
+        guard let histories = try? repo.selectData(historyIds: itemIds) else {
+            return
+        }
+        
+        var items: [[NSPasteboard.PasteboardContent]] = []
+        for history in histories {
+            for item in history.items {
+                var contents: [NSPasteboard.PasteboardContent] = []
+                for content in item.contents {
+                    contents.append(
+                        NSPasteboard.PasteboardContent(
+                            type: NSPasteboard.PasteboardType(
+                                rawValue: content.type
+                            ),
+                            content: content.content
+                        )
+                    )
+                }
+                if contents.isEmpty {
+                    continue
+                }
+                items.append(contents)
+            }
+        }
+        
+        NSPasteboard.general.writeToPasteboard(items: items)
+        
+        _ = try? repo.updateLastUsed(historyIds: itemIds)
+        
+        NSPasteboard.paste()
+        
+    }
+}
