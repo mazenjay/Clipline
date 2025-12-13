@@ -80,10 +80,10 @@ struct ClipboardRepoTests {
     
     @Test("Basic Insert and Fetch")
     func testInsertAndFetch() async throws {
-        let history = createSampleHistory(content: "Hello World")
+        var history = createSampleHistory(content: "Hello World")
         
         // 1. Insert
-        let id = try repo.insert(history: history)
+        let id = try repo.insert(history: &history)
         #expect(id > 0)
         
         // 2. Check existence by Hash
@@ -111,13 +111,13 @@ struct ClipboardRepoTests {
     @Test("Search functionality")
     func testSearch() async throws {
         // Prepare Data
-        let h1 = createSampleHistory(content: "Apple", hash: "1", app: "Finder")
-        let h2 = createSampleHistory(content: "Banana", hash: "2", app: "Safari", isFavorited: true)
-        let h3 = createSampleHistory(content: "Apricot", hash: "3", app: "Finder")
+        var h1 = createSampleHistory(content: "Apple", hash: "1", app: "Finder")
+        var h2 = createSampleHistory(content: "Banana", hash: "2", app: "Safari", isFavorited: true)
+        var h3 = createSampleHistory(content: "Apricot", hash: "3", app: "Finder")
         
-        try repo.insert(history: h1)
-        try repo.insert(history: h2)
-        try repo.insert(history: h3)
+        try repo.insert(history: &h1)
+        try repo.insert(history: &h2)
+        try repo.insert(history: &h3)
         
         // 1. Search Keyword "Ap" (Should match Apple and Apricot)
         let filterKeyword = ClipboardRepository.SearchFilter(keyword: "Ap")
@@ -141,8 +141,8 @@ struct ClipboardRepoTests {
     func testPagination() async throws {
         // Insert 5 records
         for i in 1...5 {
-            let h = createSampleHistory(content: "Item \(i)", hash: "\(i)")
-            try repo.insert(history: h)
+            var h = createSampleHistory(content: "Item \(i)", hash: "\(i)")
+            try repo.insert(history: &h)
         }
         
         // Page 1 (Size 2) -> Should get 2 items, hasMore = true
@@ -159,8 +159,8 @@ struct ClipboardRepoTests {
     
     @Test("Update Operations (Pin, Favorite, Tags)")
     func testUpdates() async throws {
-        let history = createSampleHistory()
-        let id = try repo.insert(history: history)
+        var history = createSampleHistory()
+        let id = try repo.insert(history: &history)
         
         // Toggle Favorite
         try repo.toggleFavorite(historyId: id)
@@ -192,17 +192,17 @@ struct ClipboardRepoTests {
         
         // 1. Create OLD record (2 days ago) - Should be deleted
         let oldDate = now.addingTimeInterval(-oneDay * 2)
-        let oldHistory = createSampleHistory(content: "Old", hash: "old", createdDate: oldDate)
+        var oldHistory = createSampleHistory(content: "Old", hash: "old", createdDate: oldDate)
         
         // 2. Create NEW record (1 hour ago) - Should be kept
-        let newHistory = createSampleHistory(content: "New", hash: "new", createdDate: now)
+        var newHistory = createSampleHistory(content: "New", hash: "new", createdDate: now)
         
         // 3. Create OLD but PINNED record - Should be kept
-        let pinnedOldHistory = createSampleHistory(content: "Pinned Old", hash: "pinned", isPinned: true, createdDate: oldDate)
+        var pinnedOldHistory = createSampleHistory(content: "Pinned Old", hash: "pinned", isPinned: true, createdDate: oldDate)
         
-        try repo.insert(history: oldHistory)
-        try repo.insert(history: newHistory)
-        try repo.insert(history: pinnedOldHistory)
+        try repo.insert(history: &oldHistory)
+        try repo.insert(history: &newHistory)
+        try repo.insert(history: &pinnedOldHistory)
         
         // Action: Delete records older than 1 day
         let deletedCount = try repo.deleteRecords(olderThanDays: 1)
@@ -221,8 +221,10 @@ struct ClipboardRepoTests {
     
     @Test("Statistics")
     func testStatistics() async throws {
-        try repo.insert(history: createSampleHistory(content: "A", hash: "1"))
-        try repo.insert(history: createSampleHistory(content: "B", hash: "2"))
+        var h1 = createSampleHistory(content: "A", hash: "1")
+        var h2 = createSampleHistory(content: "B", hash: "2")
+        try repo.insert(history: &h1)
+        try repo.insert(history: &h2)
         
         let total = try repo.getTotalCount()
         #expect(total == 2)
