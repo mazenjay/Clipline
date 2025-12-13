@@ -137,44 +137,31 @@ extension ClipboardRepository {
         var sourceApp: String?
     }
     
+    // MARK: - Upsert
+    
+    @discardableResult
+    nonisolated func upsert(history: inout ClipboardHistory) throws -> Int64 {
+        guard !history.items.isEmpty else { throw DatabaseError.invalidData }
+        
+        return try dbQueue.write { db in
+            if let existing = try ClipboardHistory.filter(Column("hash") == history.hash).fetchOne(db) {
+                try db.execute(
+                    sql: "UPDATE clipboard_history SET last_used_at = ?, created_at = ? WHERE id = ?",
+                    arguments: [history.lastUsedAt, history.createdAt, existing.id]
+                )
+                return existing.id!
+            }
+            
+            return try history.performInsert(db)
+        }
+    }
+    
     // MARK: - Insert
     
     @discardableResult
-    nonisolated func insert(history: ClipboardHistory) throws -> Int64 {
-        
-        guard !history.items.isEmpty else {
-            throw DatabaseError.invalidData
-        }
-        
+    nonisolated func insert(history: inout ClipboardHistory) throws -> Int64 {
         return try dbQueue.write { db in
-            // Insert main history record
-            var mutableHistory = history
-            try mutableHistory.insert(db)
-            
-            guard let historyId = mutableHistory.id else {
-                throw DatabaseError.insertFailed
-            }
-            
-            // Insert items and contents
-            for (index, item) in history.items.enumerated() {
-                var mutableItem = item
-                mutableItem.historyId = historyId
-                mutableItem.itemIndex = Int64(index)
-                try mutableItem.insert(db)
-                
-                guard let itemId = mutableItem.id else {
-                    throw DatabaseError.insertFailed
-                }
-                
-                // Insert contents
-                for content in item.contents {
-                    var mutableContent = content
-                    mutableContent.itemId = itemId
-                    try mutableContent.insert(db)
-                }
-            }
-            
-            return historyId
+            try history.performInsert(db)
         }
     }
     
@@ -329,17 +316,46 @@ extension ClipboardRepository {
     
     // MARK: - Delete by Time Range
     
+    nonisolated func vacuum() throws {
+        try dbQueue.vacuum()
+    }
+    
+    @discardableResult
+    nonisolated func truncate() throws -> Int {
+        return try dbQueue.write { db in
+            let deleted = try ClipboardHistory.deleteAll(db)
+            try? db.execute(sql: "DELETE FROM sqlite_sequence WHERE name = 'clipboard_history'")
+            try? db.execute(sql: "DELETE FROM sqlite_sequence WHERE name = 'clipboard_history_item'")
+            try? db.execute(sql: "DELETE FROM sqlite_sequence WHERE name = 'clipboard_history_content'")
+            return deleted
+        }
+    }
+    
+    @discardableResult
     nonisolated func deleteOldRecords(olderThan duration: TimeInterval) throws -> Int {
         return try dbQueue.write { db in
             let cutoffDate = Date().addingTimeInterval(-duration)
             
             // Foreign key cascades will handle related items and contents
             let deleted = try ClipboardHistory
-                .filter(Column("created_at") < cutoffDate)
+                .filter(Column("created_at") > cutoffDate)
                 .filter(Column("is_favorited") == false) // Don't delete favorited
                 .filter(Column("is_pinned") == false)    // Don't delete pinned
                 .deleteAll(db)
             
+            return deleted
+        }
+    }
+    
+    @discardableResult
+    nonisolated func deleteOldRecords(types: [String], olderThan beforeAt: Date) throws -> Int {
+        
+        return try dbQueue.write { db in
+            let deleted = try ClipboardHistory
+                .filter(Column("created_at") < beforeAt)
+                .filter(Column("is_favorited") == false)
+                .filter(types.contains(Column("data_type")))
+                .deleteAll(db)
             return deleted
         }
     }
@@ -383,6 +399,8 @@ extension ClipboardRepository {
         }
     }
     
+    
+    
     nonisolated func updateTags(historyId: Int64, tags: [String]) throws {
         try dbQueue.write { db in
             guard var history = try ClipboardHistory.fetchOne(db, key: historyId) else {
@@ -425,5 +443,41 @@ extension ClipboardRepository {
             }
             return result
         }
+    }
+    
+    
+    nonisolated private func performInsert(_ db: Database, history: ClipboardHistory) throws -> Int64 {
+        guard !history.items.isEmpty else {
+            throw DatabaseError.invalidData
+        }
+        
+        // Insert main history record
+        var mutableHistory = history
+        try mutableHistory.insert(db) // 直接使用传入的 db
+        
+        guard let historyId = mutableHistory.id else {
+            throw DatabaseError.insertFailed
+        }
+        
+        // Insert items and contents
+        for (index, item) in history.items.enumerated() {
+            var mutableItem = item
+            mutableItem.historyId = historyId
+            mutableItem.itemIndex = Int64(index)
+            try mutableItem.insert(db)
+            
+            guard let itemId = mutableItem.id else {
+                throw DatabaseError.insertFailed
+            }
+            
+            // Insert contents
+            for content in item.contents {
+                var mutableContent = content
+                mutableContent.itemId = itemId
+                try mutableContent.insert(db)
+            }
+        }
+        
+        return historyId
     }
 }

@@ -1,0 +1,67 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "" : {
+
+    },
+    "Content copied from these apps will not be saved to history.\nOnly focusable applications can be ignored." : {
+
+    },
+    "Copied at %@" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "复制于 %@"
+          }
+        }
+      }
+    },
+    "Hello, world!" : {
+
+    },
+    "Image preview unavailable" : {
+
+    },
+    "Load More Histories" : {
+
+    },
+    "No matching clipboard history items" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "没有找到任何相关历史记录"
+          }
+        }
+      }
+    },
+    "Select an item to preview" : {
+
+    },
+    "Today" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今天"
+          }
+        }
+      }
+    },
+    "When disabled, the clipboard viewer can still show your snippets." : {
+
+    },
+    "Yesterday" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "昨天"
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.1"
+}

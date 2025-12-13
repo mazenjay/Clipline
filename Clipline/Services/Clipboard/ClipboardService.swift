@@ -14,10 +14,23 @@ class ClipboardService {
     
     private let repo: ClipboardRepository
     
-    init(repo: ClipboardRepository) throws {
-        self.repo = repo
+    var cleanRulesGetter: () -> [NSPasteboard.CleanRule] = { [] }
+    
+    init() throws {
+        self.repo = try ClipboardRepository()
         self.listener = try ClipboardListener(repo: repo)
-        try listen()
+    }
+    
+    func setCheckOnCopy(onCopy: @escaping (String) -> Bool) {
+        listener.onCopy = onCopy
+    }
+    
+    func setCheckOnParsed(onParsed: @escaping (NSPasteboard.ParsedResult) -> Bool) {
+        listener.onParsed = onParsed
+    }
+    
+    func setCleanRulesGetter(getter: @escaping () -> [NSPasteboard.CleanRule]) {
+        cleanRulesGetter = getter
     }
     
     func listen() throws {
@@ -28,7 +41,7 @@ class ClipboardService {
         try listener.shutdown()
     }
     
-    func fetchItems(keyword: String?, pageSize: Int = 30, page: Int = 0) -> (items: [ClipboardHistory], hasMore: Bool)? {
+    func search(keyword: String?, pageSize: Int = 30, page: Int = 0) -> (items: [ClipboardHistory], hasMore: Bool)? {
         guard
             let result = try? repo.search(
                 filter: ClipboardRepository.SearchFilter(keyword: keyword),
@@ -93,5 +106,22 @@ class ClipboardService {
         
         NSPasteboard.paste()
         
+    }
+    
+    func cleanupWithRules(rules: [NSPasteboard.CleanRule] = []) {
+        if rules.isEmpty {
+            repo.cleanup(with: rules)
+            return
+        }
+        repo.cleanup(with: cleanRulesGetter())
+    }
+    
+    func cleanup(minutes: Int) {
+        if minutes < 0 {
+            _ = try? repo.truncate()
+            return
+        }
+        _ = try? repo.deleteRecords(olderThanMinutes: minutes)
+        try? repo.vacuum()
     }
 }

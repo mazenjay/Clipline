@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		7B5547812EDB40F9002F1D56 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 7B5547802EDB40F9002F1D56 /* GRDB */; };
+		7B5547BA2EDE87E5002F1D56 /* KeyboardShortcuts in Frameworks */ = {isa = PBXBuildFile; productRef = 7B5547B92EDE87E5002F1D56 /* KeyboardShortcuts */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -57,6 +58,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				7B5547812EDB40F9002F1D56 /* GRDB in Frameworks */,
+				7B5547BA2EDE87E5002F1D56 /* KeyboardShortcuts in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -118,6 +120,7 @@
 			name = Clipline;
 			packageProductDependencies = (
 				7B5547802EDB40F9002F1D56 /* GRDB */,
+				7B5547B92EDE87E5002F1D56 /* KeyboardShortcuts */,
 			);
 			productName = Clipline;
 			productReference = 7B5547552EDB40C5002F1D56 /* Clipline.app */;
@@ -198,11 +201,13 @@
 			knownRegions = (
 				en,
 				Base,
+				"zh-Hans",
 			);
 			mainGroup = 7B55474C2EDB40C5002F1D56;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				7B55477F2EDB40F9002F1D56 /* XCRemoteSwiftPackageReference "GRDB.swift" */,
+				7B5547B82EDE87E5002F1D56 /* XCRemoteSwiftPackageReference "KeyboardShortcuts" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 7B5547562EDB40C5002F1D56 /* Products */;
@@ -337,6 +342,7 @@
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = macosx;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 			};
 			name = Debug;
@@ -393,6 +399,7 @@
 				MTL_FAST_MATH = YES;
 				SDKROOT = macosx;
 				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_EMIT_LOC_STRINGS = YES;
 			};
 			name = Release;
 		};
@@ -582,6 +589,14 @@
 				kind = branch;
 			};
 		};
+		7B5547B82EDE87E5002F1D56 /* XCRemoteSwiftPackageReference "KeyboardShortcuts" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sindresorhus/KeyboardShortcuts.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.4.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -589,6 +604,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 7B55477F2EDB40F9002F1D56 /* XCRemoteSwiftPackageReference "GRDB.swift" */;
 			productName = GRDB;
+		};
+		7B5547B92EDE87E5002F1D56 /* KeyboardShortcuts */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 7B5547B82EDE87E5002F1D56 /* XCRemoteSwiftPackageReference "KeyboardShortcuts" */;
+			productName = KeyboardShortcuts;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

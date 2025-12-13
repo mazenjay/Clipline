@@ -7,10 +7,7 @@
 
 import Foundation
 import GRDB
-
-
-import Foundation
-import GRDB
+import Carbon
 
 // MARK: - Errors
 
@@ -36,7 +33,13 @@ struct PagedResult<T> {
 
 // MARK: - ClipboardHistory Model
 
-struct ClipboardHistory: @unchecked Sendable {
+struct ClipboardHistory: @unchecked Sendable, Identifiable, Equatable, FetchableRecord, MutablePersistableRecord {
+    
+    // GRDB
+    static let databaseTableName = "clipboard_history"
+    static let historyItems = hasMany(ClipboardHistoryItem.self)
+    
+    // Database fields
     var id: Int64?
     var sourceApp: String
     var showContent: String
@@ -50,6 +53,8 @@ struct ClipboardHistory: @unchecked Sendable {
 
     // Not in DB
     var items: [ClipboardHistoryItem] = []
+    var loadMore: Bool = false
+    
 
     init(id: Int64? = nil,
          sourceApp: String = "",
@@ -61,7 +66,8 @@ struct ClipboardHistory: @unchecked Sendable {
          tags: [String]? = nil,
          lastUsedAt: Date? = nil,
          createdAt: Date? = nil,
-         items: [ClipboardHistoryItem] = []) {
+         items: [ClipboardHistoryItem] = [],
+         loadMore: Bool = false) {
         self.id = id
         self.sourceApp = sourceApp
         self.showContent = showContent
@@ -73,15 +79,8 @@ struct ClipboardHistory: @unchecked Sendable {
         self.lastUsedAt = lastUsedAt
         self.createdAt = createdAt
         self.items = items
+        self.loadMore = loadMore
     }
-}
-
-// MARK: - GRDB Conformance
-
-extension ClipboardHistory: FetchableRecord, MutablePersistableRecord {
-    static let databaseTableName = "clipboard_history"
-
-    static let historyItems = hasMany(ClipboardHistoryItem.self)
 
     nonisolated mutating func didInsert(_ inserted: InsertionSuccess) {
         id = inserted.rowID
@@ -128,6 +127,50 @@ extension ClipboardHistory: FetchableRecord, MutablePersistableRecord {
         lastUsedAt = row["last_used_at"]
         createdAt = row["created_at"]
         items = []
+    }
+    
+    static func == (lhs: ClipboardHistory, rhs: ClipboardHistory) -> Bool {
+        // 如果两个 id 都为 nil，则视为不相等（或者可以根据业务逻辑调整）
+        guard let lhsId = lhs.id, let rhsId = rhs.id else {
+            // 这里可以根据业务需求决定：
+            // 1. 如果两个都没有 id，返回 false（不是同一个数据库记录）
+            // 2. 或者如果两个都没有 id，比较其他属性
+            return false
+        }
+        return lhsId == rhsId
+    }
+    
+    /// Just for preservation, the ids of child elements will not be synchronized.
+    mutating nonisolated func performInsert(_ db: Database) throws -> Int64 {
+        guard !self.items.isEmpty else {
+            throw DatabaseError.invalidData
+        }
+        
+        // Insert main history record
+        try insert(db) // 直接使用传入的 db
+        
+        guard let historyId = id else { throw DatabaseError.insertFailed }
+        
+        // Insert items and contents
+        for (index, item) in items.enumerated() {
+            var mutableItem = item
+            mutableItem.historyId = historyId
+            mutableItem.itemIndex = Int64(index)
+            try mutableItem.insert(db)
+            
+            guard let itemId = mutableItem.id else {
+                throw DatabaseError.insertFailed
+            }
+            
+            // Insert contents
+            for content in item.contents {
+                var mutableContent = content
+                mutableContent.itemId = itemId
+                try mutableContent.insert(db)
+            }
+        }
+        
+        return historyId
     }
 }
 
@@ -225,3 +268,7 @@ extension ClipboardHistoryContent: FetchableRecord, MutablePersistableRecord {
         priority = row["priority"]
     }
 }
+
+
+
+// MARK:  Preferences Model
