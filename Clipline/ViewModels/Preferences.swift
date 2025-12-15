@@ -104,12 +104,12 @@ class PreferencesWindowController: NSWindowController, NSWindowDelegate {
         }
         let screenFrame = screen.visibleFrame
         let x = screenFrame.midX - preferencesWindowWidth * 0.5
-        let y = screenFrame.midY - preferencesWindowWidth * 0.5
+        let y = screenFrame.midY - preferencesWindowHeight * 0.5
         let rect = NSRect(
             x: x,
             y: y,
-            width: screenFrame.width,
-            height: screenFrame.height
+            width: preferencesWindowWidth,
+            height: preferencesWindowHeight
         )
 
         self.window?.setFrame(rect, display: true, animate: true)

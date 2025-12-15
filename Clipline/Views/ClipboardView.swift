@@ -90,14 +90,12 @@ struct HistoryListView: View {
             StepScrollList(
                 proxy: proxy,
                 stepHeight: 26,
+                scrollToIndex: $viewModel.scrollToRow,
                 onScrollPositionChanged: { firstVisibleIndex in
                     viewModel.currentScrollTopIndex = firstVisibleIndex
                 }
             ) {
                 lazyListContent(items: items)
-            }
-            .onChange(of: viewModel.scrollToRow) { _, targetIdx in
-                handleScrollToRow(proxy: proxy, targetIdx: targetIdx)
             }
             .onChange(of: viewModel.scrollByStep) { _, scrollStep in
                 handleScrollByStep(proxy: proxy, scrollStep: scrollStep)
@@ -139,17 +137,6 @@ struct HistoryListView: View {
     }
     
     // MARK: - Logic Helpers (解决闭包过长)
-    
-    private func handleScrollToRow(proxy: StepScrollViewProxy, targetIdx: Int?) {
-        guard let targetIdx = targetIdx else { return }
-        Task {
-            await Task.yield()
-            proxy.scrollTo(index: targetIdx)
-            // 确保 ViewModel 里同步更新选中态
-            viewModel.hoveredIdx = targetIdx
-            viewModel.scrollToRow = nil
-        }
-    }
     
     private func handleScrollByStep(proxy: StepScrollViewProxy, scrollStep: Int?) {
         guard let scrollStep = scrollStep else { return }
@@ -203,7 +190,7 @@ struct HistoryListView: View {
                     .scaledToFit()
                     .frame(width: 24, height: 24)
 
-                Text(item.showContent.trimmingCharacters(in: .whitespaces))
+                Text(item.showContent.trimmingCharacters(in: .whitespacesAndNewlines))
                     .lineLimit(1)
                     .truncationMode(.tail)
                     .foregroundColor(.primary)

@@ -9,16 +9,42 @@ import SwiftUI
 import UniformTypeIdentifiers
 import KeyboardShortcuts
 
+
+enum Tab: String, CaseIterable, Identifiable {
+    case history = "History"
+    case todo = "todo"
+    var id: String { self.rawValue }
+}
+
+
 struct PreferencesView: View {
 
     @ObservedObject var viewModel: PreferencesViewModel
+    @State private var selectedTab: Tab = .history
 
     var body: some View {
-//        ScrollView {
-//
-//        }
-        HistoryTab(viewModel: viewModel)
         
+        TabView(selection: $selectedTab) {
+            HistoryTab(viewModel: viewModel)
+                .tabItem {
+                     // Label 同时包含图标和文字
+                     Label("History", systemImage: "clock")
+                 }
+                 .tag(Tab.history)
+                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            
+            Text("Todo List Placeholder")
+                .tabItem {
+                    Label("Todo", systemImage: "checklist")
+                }
+                .tag(Tab.todo)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+
+        }
+//        .tabViewStyle(.tabBarOnly)
+        .padding()
+        // 设置窗口大小
+        .frame(minWidth: 900, minHeight: 600)
     }
 }
 
@@ -96,7 +122,7 @@ struct HistoryTab: View {
                 }
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+//        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
     }
 }
 

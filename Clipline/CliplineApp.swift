@@ -12,8 +12,8 @@ import Combine
 let clipboardWindowHeight: CGFloat = 432    // clipboard window height
 let clipboardWindowWidth: CGFloat = 820     // clipboard window width
 let clipHistoryListAttr: [NSAttributedString.Key: Any] = [.foregroundColor: NSColor.labelColor] // history record preview style of text type
-let preferencesWindowHeight: CGFloat = 800
-let preferencesWindowWidth: CGFloat = 600
+let preferencesWindowHeight: CGFloat = 600
+let preferencesWindowWidth: CGFloat = 900
 let defaultNSFontColor: NSColor = .labelColor
 let fallbackIcon = NSImage(systemSymbolName: "questionmark.app.dashed", accessibilityDescription: nil)!
 

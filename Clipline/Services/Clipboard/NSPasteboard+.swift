@@ -19,8 +19,6 @@ extension NSPasteboard.PasteboardType {
     
     static let remote = NSPasteboard.PasteboardType("com.apple.is-remote-clipboard")
     
-    static let icns = NSPasteboard.PasteboardType("com.apple.icns")
-    
     static let mixture = NSPasteboard.PasteboardType("dyn.clipline.marker.mixture")
     
     static let unknown = NSPasteboard.PasteboardType("dyn.clipline.marker.unknown")
@@ -30,7 +28,6 @@ extension NSPasteboard.PasteboardType {
         // Image
         .tiff,
         .png,
-        .icns,
         
         // File
         .fileURL,
@@ -285,8 +282,7 @@ extension NSPasteboard {
         
         if utType.conforms(to: .image),
             let image = NSImage(data: data) {
-            let formatName = utType.localizedDescription ?? "Image"
-            return "\(formatName) - \(Int(image.size.width)) × \(Int(image.size.height))"
+            return "Image - \(Int(image.size.width)) × \(Int(image.size.height))"
         }
         
         if utType.conforms(to: .fileURL),
@@ -345,9 +341,8 @@ extension NSPasteboard {
             // 1. 图片 (Image)
             if utType.conforms(to: .image) {
                 if let image = NSImage(data: data) {
-                    let formatName = utType.localizedDescription ?? "Image"
                     views.append(
-                        "\(formatName) - \(Int(image.size.width)) × \(Int(image.size.height))"
+                        "Image - \(Int(image.size.width)) × \(Int(image.size.height))"
                     )
                     continue
                 }
@@ -406,13 +401,6 @@ extension NSPasteboard {
             let formattedSize = data.formatBytes()
             views.append("\(typeDescription) - \(formattedSize)")
         }
-
-        //        if utType.conforms(to: .fileURL) {
-        //            let str = views.joined(separator: ",")
-        //            return views.count > 1
-        //                ? "\(views.count) Files: \(str)" : "File: \(str)"
-        //        }
-
         return views
 
     }
@@ -457,9 +445,8 @@ extension NSPasteboard {
 
             if utType.conforms(to: .image) {
                 if let image = NSImage(data: data) {
-                    let formatName = utType.localizedDescription ?? "Image"
                     views.append(
-                        "\(formatName) - \(Int(image.size.width)) × \(Int(image.size.height))"
+                        "Image - \(Int(image.size.width)) × \(Int(image.size.height))"
                     )
                     continue
                 }

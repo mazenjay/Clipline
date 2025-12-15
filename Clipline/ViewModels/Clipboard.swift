@@ -126,14 +126,14 @@ extension ClipboardViewModel {
 
             await MainActor.run {
                 guard self.query == currentQuery else { return }
-
                 self.hasMore = result.hasMore
-                
                 if currentPage == 0 {
                     self.histories = result.items
                     self.hoveredIdx = 0
                 } else {
+                    let cnt = histories.count
                     self.histories.append(contentsOf: result.items)
+                    self.scrollToRow = cnt
                 }
                 
                 self.page += 1
@@ -151,9 +151,11 @@ extension ClipboardViewModel {
         ) else {
             return
         }
-
+        self.page += 1
+        self.hasMore = result.hasMore
         self.histories = result.items
         self.hoveredIdx = result.items.isEmpty ? nil : 0
+        self.shouldRespondToHover = false
     }
     
     func input() {
@@ -420,9 +422,9 @@ extension ClipboardNSWindow {
         let isAtTopEdge = (currentIndex == firstVisibleIndex)
         let isAtBottomEdge = (currentIndex == lastVisibleIndex)
 
-        print(
-            "currenTopIdx: \(viewModel.currentScrollTopIndex) currentIdx \(currentIndex)  count: \(count)  isAtbottom: \(isAtBottomEdge) firstidx:\(firstVisibleIndex) lastIdx:\(lastVisibleIndex)"
-        )
+//        print(
+//            "currenTopIdx: \(viewModel.currentScrollTopIndex) currentIdx \(currentIndex)  count: \(count)  isAtbottom: \(isAtBottomEdge) firstidx:\(firstVisibleIndex) lastIdx:\(lastVisibleIndex)"
+//        )
 
         var nextIndex = currentIndex
         switch direction {
@@ -440,7 +442,6 @@ extension ClipboardNSWindow {
             //            let isLoadMoreItem = items[currentIndex].loadMore
             // 如果当前在高亮区的最底部，并且不是整个列表的最后一项
             if isAtBottomEdge && currentIndex < count - 1 {
-                print("downnnsadawd")
                 // 滚动视窗，高亮索引也加一
                 nextIndex += 1
                 viewModel.shouldRespondToHover = false

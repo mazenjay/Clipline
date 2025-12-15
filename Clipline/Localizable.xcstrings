@@ -20,6 +20,9 @@
     "Hello, world!" : {
 
     },
+    "History" : {
+
+    },
     "Image preview unavailable" : {
 
     },
@@ -48,6 +51,12 @@
           }
         }
       }
+    },
+    "Todo" : {
+
+    },
+    "Todo List Placeholder" : {
+
     },
     "When disabled, the clipboard viewer can still show your snippets." : {
 

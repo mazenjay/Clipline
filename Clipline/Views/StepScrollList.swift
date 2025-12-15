@@ -46,38 +46,38 @@ class NSStepScrollView: NSScrollView {
     /// 根据给定的像素值手动滚动视图
     private func scroll(by amount: CGFloat) {
         guard let documentView = self.documentView else {
-            print("❌ scroll(by:) documentView is nil")
+//            print("❌ scroll(by:) documentView is nil")
             return
         }
         
         let currentY = contentView.bounds.origin.y
         let newY = currentY - amount
-        print(" amount: \(amount)")
+//        print(" amount: \(amount)")
         
         // 计算有效的滚动范围
         let maxY = calculateMaxScrollY()
         let clampedY = clamp(newY, min: 0, max: maxY)
         
-        print("🔧 scroll(by:) currentY: \(currentY), newY: \(newY), maxY: \(maxY), clampedY: \(clampedY)")
-        print("🔧 documentHeight: \(documentView.frame.height), contentHeight: \(contentView.frame.height)")
+//        print("🔧 scroll(by:) currentY: \(currentY), newY: \(newY), maxY: \(maxY), clampedY: \(clampedY)")
+  //      print("🔧 documentHeight: \(documentView.frame.height), contentHeight: \(contentView.frame.height)")
         
         // 只有位置实际变化时才滚动
         guard clampedY != currentY else {
-            print("⚠️ scroll(by:) clampedY == currentY, no scroll performed")
+//            print("⚠️ scroll(by:) clampedY == currentY, no scroll performed")
             return
         }
-        print("✅ scroll(by:) performing scroll to: \(clampedY)")
+//        print("✅ scroll(by:) performing scroll to: \(clampedY)")
         performScroll(to: clampedY)
         
     }
         
     func scrollByStep(_ direction: Int) {
-        print("📦 NSStepScrollView.scrollByStep called with direction: \(direction)")
+//        print("📦 NSStepScrollView.scrollByStep called with direction: \(direction)")
         let scrollAmount = CGFloat(direction) * stepHeight
-        print("📦 scrollAmount: \(scrollAmount), stepHeight: \(stepHeight)")
-        print("📦 Current contentView.bounds.origin.y: \(contentView.bounds.origin.y)")
+//        print("📦 scrollAmount: \(scrollAmount), stepHeight: \(stepHeight)")
+//        print("📦 Current contentView.bounds.origin.y: \(contentView.bounds.origin.y)")
         scroll(by: scrollAmount)
-        print("📦 After scroll, contentView.bounds.origin.y: \(contentView.bounds.origin.y)")
+//        print("📦 After scroll, contentView.bounds.origin.y: \(contentView.bounds.origin.y)")
     }
 
     func scrollTo(yOffset: CGFloat) {
@@ -160,18 +160,23 @@ class NSStepScrollView: NSScrollView {
 
 struct StepScrollList<Content: View>: NSViewRepresentable {
     private var proxy: StepScrollViewProxy?
+    
     let stepHeight: CGFloat
     let content: () -> Content
     let onScrollPositionChanged: ((Int) -> Void)?
+    var scrollToIndex: Binding<Int?>?
+
 
     init(
         proxy: StepScrollViewProxy? = nil,
         stepHeight: CGFloat,
+        scrollToIndex: Binding<Int?>? = nil,
         onScrollPositionChanged: ((Int) -> Void)? = nil,
         @ViewBuilder content: @escaping () -> Content
     ) {
         self.proxy = proxy
         self.stepHeight = stepHeight
+        self.scrollToIndex = scrollToIndex
         self.onScrollPositionChanged = onScrollPositionChanged
         self.content = content
     }
@@ -243,6 +248,32 @@ struct StepScrollList<Content: View>: NSViewRepresentable {
             // 3. ❌❌❌ 绝对删除这一行 ❌❌❌
             // hostingView.layoutSubtreeIfNeeded()
             // 这一行会强制立即重绘，配合 LazyVStack 极易导致闪烁
+            
+            // 只有当 (1) 绑定存在 且 (2) 绑定的值不为 nil 时，才执行滚动
+            if let binding = scrollToIndex, let targetIndex = binding.wrappedValue {
+                
+                // 为了滚动的准确性，强制立即计算高度
+                hostingView.layoutSubtreeIfNeeded()
+                
+                // 计算目标位置
+                let targetY = CGFloat(targetIndex) * stepHeight
+                
+                // 执行瞬移 (Trust Math)
+                let newOrigin = CGPoint(x: 0, y: targetY)
+                
+                // 简单的防越界处理 (可选，但推荐)
+                // 此时因为强制 layout 了，frame 应该是准的
+                let maxY = max(0, hostingView.frame.height - nsView.contentView.bounds.height)
+                let clampedY = min(targetY, maxY)
+                
+                nsView.contentView.bounds.origin = CGPoint(x: 0, y: clampedY)
+                nsView.reflectScrolledClipView(nsView.contentView)
+                
+                // 5. 重置状态
+                DispatchQueue.main.async {
+                    binding.wrappedValue = nil
+                }
+            }
         } else {
             // 初始化逻辑 (保持不变)
             let newHostingView = NSHostingView(rootView: content())
