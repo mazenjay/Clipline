@@ -27,7 +27,6 @@ struct PreferencesView: View {
         TabView(selection: $selectedTab) {
             HistoryTab(viewModel: viewModel)
                 .tabItem {
-                     // Label 同时包含图标和文字
                      Label("History", systemImage: "clock")
                  }
                  .tag(Tab.history)
@@ -41,9 +40,7 @@ struct PreferencesView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
 
         }
-//        .tabViewStyle(.tabBarOnly)
         .padding()
-        // 设置窗口大小
         .frame(minWidth: 900, minHeight: 600)
     }
 }
@@ -53,11 +50,10 @@ struct LabelColumn: View {
     var body: some View {
         Text(text)
             .foregroundColor(.secondary)
-            .multilineTextAlignment(.trailing)  // 文字内部右对齐
-            .lineLimit(1)  // 禁止换行
-//            .fixedSize()   再次确保文字本身不被压缩
-            .frame(width: 130, alignment: .trailing)  // ⭐️ 关键：固定容器宽度
-            .padding(.trailing, 8)  // 和右侧内容保持间距
+            .multilineTextAlignment(.trailing)
+            .lineLimit(1)
+            .frame(width: 130, alignment: .trailing)
+            .padding(.trailing, 8)
     }
 }
 
@@ -73,7 +69,7 @@ struct HistoryTab: View {
             ) {
                 GridRow {
                     LabelColumn(text: "Clipboard History:")
-                        .padding(.top, 12)  // 微调对齐
+                        .padding(.top, 12)
 
                     VStack(alignment: .leading, spacing: 8) {
                         HStack(spacing: 12) {
@@ -122,7 +118,6 @@ struct HistoryTab: View {
                 }
             }
         }
-//        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
     }
 }
 
@@ -146,8 +141,6 @@ struct HistoryOptionCard: View {
                 .labelsHidden()
                 .frame(maxWidth: 120)
                 .disabled(!isEnabled)
-
-                // 上下箭头图标装饰 (macOS Picker 自带，这里为了对齐不需要额外加)
             }
         }
         .padding(12)
@@ -163,15 +156,13 @@ struct HistoryOptionCard: View {
 
 struct IgnoredAppsListView: View {
     @ObservedObject var viewModel: PreferencesViewModel
-    @State private var selection: String?  // 选中的 Bundle ID
+    @State private var selection: String?
 
     var body: some View {
         VStack(alignment: .leading) {
-            // 列表区域
             List(selection: $selection) {
                 ForEach(viewModel.ignoredApps, id: \.self) { bundleId in
                     HStack {
-                        // 获取 App 图标
                         if let path = NSWorkspace.shared.urlForApplication(
                             withBundleIdentifier: bundleId
                         )?.path {
@@ -184,7 +175,6 @@ struct IgnoredAppsListView: View {
                             Image(systemName: "app.dashed")
                         }
 
-                        // 显示 Bundle ID 或 尝试获取 App 名称
                         Text(appName(for: bundleId) ?? bundleId)
                             .foregroundColor(.primary)
 
@@ -197,11 +187,10 @@ struct IgnoredAppsListView: View {
                     .tag(bundleId)
                 }
             }
-            .frame(width: 450, height: 250)  // 固定高度
+            .frame(width: 450, height: 250)
             .border(Color.gray.opacity(0.2))
             .background(Color(nsColor: .controlBackgroundColor))
 
-            // 按钮区域 (+ -)
             HStack(spacing: 0) {
                 Button(action: addApp) {
                     Image(systemName: "plus")
@@ -234,7 +223,6 @@ struct IgnoredAppsListView: View {
         }
     }
 
-    // 辅助方法：获取 App 名称
     func appName(for bundleId: String) -> String? {
         guard
             let url = NSWorkspace.shared.urlForApplication(
@@ -244,7 +232,6 @@ struct IgnoredAppsListView: View {
         return FileManager.default.displayName(atPath: url.path)
     }
 
-    // Action: 添加 App
     func addApp() {
         let panel = NSOpenPanel()
         panel.allowedContentTypes = [.applicationBundle]
@@ -264,7 +251,6 @@ struct IgnoredAppsListView: View {
         }
     }
 
-    // Action: 删除 App
     func removeApp() {
         if let sel = selection {
             viewModel.removeIgnoredApp(sel)

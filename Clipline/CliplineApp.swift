@@ -159,7 +159,7 @@ class StatusBarController {
     init() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         if let button = statusItem.button {
-            button.image = NSImage(systemSymbolName: "keyboard.badge.ellipsis", accessibilityDescription: nil)
+            button.image = NSImage(named: "StatusIcon")
         }
 
         let menu = NSMenu()

@@ -49,8 +49,8 @@ struct ClipboardView: View {
                             Spacer()
                         }
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .background(Color.clear) // 确保鼠标事件能穿透或者阻挡，视需求而定
-                        .transition(.opacity) // 加上淡入淡出，让提示文字出现得更柔和
+                        .background(Color.clear)
+                        .transition(.opacity)
                     }
                 }
             }
@@ -59,7 +59,6 @@ struct ClipboardView: View {
         }
         .padding(12)
         .background(
-            // 背景会自动对齐到 VStack 的 padding 边界
             Color.clear
                 .glassEffect(
                     .regular.interactive(),
@@ -83,9 +82,7 @@ struct HistoryListView: View {
     var height: CGFloat
     
     var body: some View {
-        // 1. 这里的 items 不需要 enumerated()，直接传数组，减轻编译器负担
         let items = viewModel.itemsForTableView
-        
         StepScrollViewReader { proxy in
             StepScrollList(
                 proxy: proxy,
@@ -104,9 +101,8 @@ struct HistoryListView: View {
         }
     }
     
-    // MARK: - Subviews (解决编译器超时 Resolve compiler timeout)
+    // MARK: - Subviews (Resolve compiler timeout)
     
-    // 提取列表容器
     private func lazyListContent(items: [ClipboardHistory]) -> some View {
         LazyVStack(spacing: 0) {
             ForEach(items, id: \.id) { item in
@@ -115,7 +111,6 @@ struct HistoryListView: View {
         }
     }
     
-    // 提取 Row 的构建逻辑
     private func makeRowView(for item: ClipboardHistory) -> some View {
         RowView(
             item: item,
@@ -123,7 +118,6 @@ struct HistoryListView: View {
             namespace: listNamespace,
             onHover: { isHovering in
                 if isHovering {
-                    // 如果需要反查 index 给 ViewModel，在这里查，不要在 View 构建时查
                     if viewModel.shouldRespondToHover {
                         viewModel.hoveredItem = item
                     }
@@ -136,7 +130,7 @@ struct HistoryListView: View {
         )
     }
     
-    // MARK: - Logic Helpers (解决闭包过长)
+    // MARK: - Logic Helpers (Resolve long closure)
     
     private func handleScrollByStep(proxy: StepScrollViewProxy, scrollStep: Int?) {
         guard let scrollStep = scrollStep else { return }
@@ -166,7 +160,7 @@ struct HistoryListView: View {
     }
 
     private func handleSingleSelect(item: ClipboardHistory) {
-        if let id = item.id { // 如果 id 已经是 Int64 非可选，直接 let id = item.id
+        if let id = item.id {
             viewModel.selections = [id]
             viewModel.paste()
         }
@@ -224,7 +218,6 @@ struct HistoryListView: View {
             )
             .gesture(
                 TapGesture().onEnded {
-                    // 调用传入的 onTap 闭包
                     onTap()
                 }
             )
@@ -278,20 +271,17 @@ struct HistoryPreviewView: View {
         
         
         VStack(spacing: 12) {
-            // 1. 主要内容区域 (使用 Spacer 把内容顶上去，元数据沉底)
             Group {
                 if dataType.isFile() {
                     FilePreviewView(contents: contents)
                 } else if dataType.isImage(), let first = contents.first {
                     ImagePreviewView(content: first)
                 } else {
-                    // 文本视图
                     LargeTextView(text: viewModel.text)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-            // 2. 底部元数据区域
             MetadataFooterView(
                 item: item,
                 contents: contents,
@@ -328,8 +318,8 @@ struct FilePreviewView: View {
 
     var body: some View {
         if contents.count > 1 {
-            // 多文件列表
-            StepScrollList(stepHeight: 28) { // 稍微增加高度方便阅读
+            // Multi-file list
+            StepScrollList(stepHeight: 28) {
                 LazyVStack(alignment: .leading, spacing: 4) {
                     ForEach(contents, id: \.id) { item in
                         SingleFileRow(content: item)
@@ -346,17 +336,14 @@ struct FilePreviewView: View {
     }
 }
 
-/// 单个文件行视图
+/// Single file line view
 struct SingleFileRow: View {
     let content: ClipboardHistoryContent
     var isLarge: Bool = false
 
     var body: some View {
-        // 安全解包 URL
         if let urlString = String(data: content.content, encoding: .utf8),
            let url = URL(string: urlString) {
-            
-            // 获取图标（建议使用之前优化的 AppUtils 或类似逻辑）
             let icon = NSWorkspace.shared.icon(forFile: url.path)
 
             HStack(spacing: 8) {
@@ -365,15 +352,14 @@ struct SingleFileRow: View {
                     .scaledToFit()
                     .frame(width: isLarge ? 64 : 24, height: isLarge ? 64 : 24)
 
-                Text(url.lastPathComponent) // 只显示文件名，路径太长
+                Text(url.lastPathComponent)
                     .font(isLarge ? .title3 : .body)
                     .fontWeight(.medium)
                     .lineLimit(1)
-                    .truncationMode(.middle) // 文件名通常中间省略更好
+                    .truncationMode(.middle)
 
                 if !isLarge {
                     Spacer()
-                    // 只有列表模式才显示路径提示，或者悬停显示完整路径
                     Text(url.deletingLastPathComponent().path)
                         .font(.caption)
                         .foregroundColor(.secondary)
@@ -387,12 +373,10 @@ struct SingleFileRow: View {
 }
 
 
-/// 2. 图片预览组件
+/// Image preview component
 struct ImagePreviewView: View {
     let content: ClipboardHistoryContent
     
-    // ⭐️ 改进：使用本地 State 管理图片加载，不依赖 ViewModel
-    // 这样切换 Item 时，UI 会自动重置，不会显示上一张图
     @State private var image: NSImage?
     @State private var isLoading = true
 
@@ -416,10 +400,9 @@ struct ImagePreviewView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        // ⭐️ 改进：当 ID 变化时自动重新加载
         .task(id: content.id) {
             isLoading = true
-            image = nil // 清空旧图
+            image = nil
             let result = await NSPasteboard.preview(for: content.content, with: content.type)
             guard !Task.isCancelled else { return }
             image = result
@@ -429,7 +412,7 @@ struct ImagePreviewView: View {
 }
 
 
-/// 3. 底部元数据组件
+/// Bottom metadata component
 struct MetadataFooterView: View {
     let item: ClipboardHistory
     let contents: [ClipboardHistoryContent]
@@ -442,7 +425,6 @@ struct MetadataFooterView: View {
 
     var body: some View {
         HStack(spacing: 16) {
-            // 左侧：类型信息
             HStack(spacing: 4) {
                 Image(systemName: typeIcon)
                 Text(typeDescription)
@@ -450,7 +432,6 @@ struct MetadataFooterView: View {
             
             Spacer()
             
-            // 右侧：时间
             Text("Copied at \(dateString)")
                 .monospacedDigit()
         }
@@ -460,7 +441,6 @@ struct MetadataFooterView: View {
         .overlay(Rectangle().frame(height: 1).foregroundColor(.gray.opacity(0.1)), alignment: .top)
     }
 
-    // 辅助计算属性
     private var typeIcon: String {
         if dataType.isFile() { return "folder" }
         if dataType.isImage() { return "photo" }

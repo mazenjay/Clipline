@@ -129,6 +129,7 @@ extension NSPasteboard {
     struct PasteboardSnapshot {
         let sourceAppBundleID: String
         let items: [[NSPasteboard.PasteboardContent]]
+        let isFromRemote: Bool
     }
     
     // MARK: parsed clipboard content
@@ -206,11 +207,11 @@ extension NSPasteboard {
             return nil
         }
         var snapshotItems: [[PasteboardContent]] = []
-        
+        var isRemote: Bool = false
         for item in pasteboardItems {
             
             if item.types.contains(.ignore) { return nil }
-            
+            if !isRemote && item.types.contains(.remote) { isRemote = true }
             let availableTypes = item.types
             var contentList: [PasteboardContent] = []
             print(availableTypes)
@@ -233,6 +234,7 @@ extension NSPasteboard {
         return .init(
             sourceAppBundleID: sourceApp,
             items: snapshotItems,
+            isFromRemote: isRemote
         )
     }
     
@@ -338,7 +340,7 @@ extension NSPasteboard {
         var views: [String] = []
 
         for data in dataSlice {
-            // 1. 图片 (Image)
+            // Image
             if utType.conforms(to: .image) {
                 if let image = NSImage(data: data) {
                     views.append(
@@ -348,19 +350,17 @@ extension NSPasteboard {
                 }
             }
 
-            // 2. 文件路径 (File URL)
+            // File URL
             if utType.conforms(to: .fileURL) {
-                // 文件路径数据通常是 UTF-8 编码的字符串
                 if let urlString = String(data: data, encoding: .utf8),
                     let url = URL(string: urlString)
                 {
-                    // 我们只关心文件名，而不是完整路径
                     views.append("\(url.lastPathComponent)")
                     continue
                 }
             }
 
-            // 3. PDF 文档
+            // PDF object
             if utType.conforms(to: .pdf),
                 PDFDocument(data: data) != nil
             {
@@ -368,8 +368,7 @@ extension NSPasteboard {
                 continue
             }
 
-            // 4. 富文本 (HTML & RTF)
-            // 我们尝试从中提取纯文本作为预览
+            // HTML & RTF
             if utType.conforms(to: .html) || utType.conforms(to: .rtf) {
                 let options:
                     [NSAttributedString.DocumentReadingOptionKey: Any] =
@@ -452,19 +451,15 @@ extension NSPasteboard {
                 }
             }
 
-            // 2. 文件路径 (File URL)
             if utType.conforms(to: .fileURL) {
-                // 文件路径数据通常是 UTF-8 编码的字符串
                 if let urlString = String(data: data, encoding: .utf8),
                     let url = URL(string: urlString)
                 {
-                    // 我们只关心文件名，而不是完整路径
                     views.append("\(url.lastPathComponent)")
                     continue
                 }
             }
 
-            // 3. PDF 文档
             if utType.conforms(to: .pdf),
                 PDFDocument(data: data) != nil
             {
@@ -472,8 +467,6 @@ extension NSPasteboard {
                 continue
             }
 
-            // 4. 富文本 (HTML & RTF)
-            // 我们尝试从中提取纯文本作为预览
             if utType.conforms(to: .html) || utType.conforms(to: .rtf) {
                 let options:
                     [NSAttributedString.DocumentReadingOptionKey: Any] =
@@ -537,7 +530,7 @@ extension NSPasteboard {
                     images.append(
                         NSImage(
                             systemSymbolName: "questionmark.diamond.fill",
-                            accessibilityDescription: "失效的文件链接"
+                            accessibilityDescription: "Invalid file link"
                         )
                     )
                     continue
@@ -583,35 +576,34 @@ extension NSPasteboard {
         else {
             return nil
         }
+        let scale = await MainActor.run { NSScreen.main?.backingScaleFactor ?? 2.0 }
+        let requestSize = CGSize(width: size.width * 2, height: size.height * 2)
         
         let request = QLThumbnailGenerator.Request(
                     fileAt: url,
-                    size: size,
-                    scale: NSScreen.main?.backingScaleFactor ?? 2.0,
-                    representationTypes: .all // 请求所有类型的预览，让系统决定最佳方案
+                    size: requestSize,
+                    scale: scale,
+                    representationTypes: .all // Request all types of previews, allowing the system to decide the best solution.
                 )
 
-                let generator = QLThumbnailGenerator.shared
+        let generator = QLThumbnailGenerator.shared
 
                 do {
-                    // 2. 异步生成最佳的预览表示
+                    // Asynchronously generate the best preview representation
                     let representation = try await generator.generateBestRepresentation(for: request)
                     
-                    // 3. ✅ 关键改进：检查返回的是不是通用图标
-                    //    如果系统无法为该文件生成特定内容的缩略图，它会返回一个通用图标
-                    //    (例如，所有 .txt 文件都长一个样)。在这种情况下，我们更倾向于使用
-                    //    与 Finder 中完全一致的图标。
+                    // If the system is unable to generate a thumbnail with specific content for the file, it will return a generic icon
+                    // (for example, all .txt files look the same). In this case, we are more inclined to use
+                    // an icon that is completely consistent with the Finder.
                     if representation.type == .icon {
-                        // 如果是通用图标，我们回落到 NSWorkspace 获取更准确的 Finder 图标
                         return NSWorkspace.shared.icon(forFile: url.path)
                     } else {
-                        // 只有当它是一个真正的内容缩略图时，我们才使用它
+                        // Only when it is a truly content thumbnail do we use it.
                         return representation.nsImage
                     }
                     
                 } catch {
-                    // 4. 如果生成过程抛出任何错误，回落到获取文件的标准图标
-                    print("生成缩略图失败 for \(url.lastPathComponent): \(error.localizedDescription)")
+                    print("Thumbnail generation failed. for \(url.lastPathComponent): \(error.localizedDescription)")
                     return NSWorkspace.shared.icon(forFile: url.path)
                 }
         
@@ -642,7 +634,6 @@ extension NSPasteboard {
             keyDown: true
         )  // 0x09 is the key code for 'v'
         keyVDown?.flags = .maskCommand
-        // Command 键松开
         let keyVUp = CGEvent(
             keyboardEventSource: source,
             virtualKey: 0x09,
@@ -650,7 +641,6 @@ extension NSPasteboard {
         )
         keyVUp?.flags = .maskCommand
 
-        // 发送事件
         let loc = CGEventTapLocation.cghidEventTap
         keyVDown?.post(tap: loc)
         keyVUp?.post(tap: loc)

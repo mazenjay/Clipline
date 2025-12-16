@@ -11,11 +11,8 @@ import GRDB
 
 public final class ClipboardRepository: @unchecked Sendable {
 
-    // 2. 改为 let，且不再是 Optional
     private let dbQueue: DatabaseQueue
 
-    // 3. 将 setup 逻辑移入 init
-    // 增加 inMemory 参数方便单元测试
     public nonisolated init(inMemory: Bool = false) throws {
         var config = Configuration()
         config.prepareDatabase { db in
@@ -24,10 +21,9 @@ public final class ClipboardRepository: @unchecked Sendable {
         }
 
         if inMemory {
-            // 内存数据库，用于测试
+            // In-memory database, for testing
             self.dbQueue = try DatabaseQueue(configuration: config)
         } else {
-            // 真实文件数据库
             let fm = FileManager.default
             let dir = try fm.url(
                 for: .applicationSupportDirectory,
@@ -41,15 +37,14 @@ public final class ClipboardRepository: @unchecked Sendable {
             }
 
             let dbPath = dir.appendingPathComponent("clipboard.db").path
-             print("Database path: \(dbPath)") // 调试用
+            print("Database path: \(dbPath)")
             self.dbQueue = try DatabaseQueue(path: dbPath, configuration: config)
         }
 
-        // 4. 初始化时立即建立表结构
+        // Establish table structure immediately upon initialization
         try createSchema()
     }
     
-    // 将 createSchema 改为内部直接使用 dbQueue
     private nonisolated func createSchema() throws {
         try dbQueue.write { db in
             try db.create(table: "clipboard_history", ifNotExists: true) { t in

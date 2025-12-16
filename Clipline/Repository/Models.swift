@@ -130,11 +130,7 @@ struct ClipboardHistory: @unchecked Sendable, Identifiable, Equatable, Fetchable
     }
     
     static func == (lhs: ClipboardHistory, rhs: ClipboardHistory) -> Bool {
-        // 如果两个 id 都为 nil，则视为不相等（或者可以根据业务逻辑调整）
         guard let lhsId = lhs.id, let rhsId = rhs.id else {
-            // 这里可以根据业务需求决定：
-            // 1. 如果两个都没有 id，返回 false（不是同一个数据库记录）
-            // 2. 或者如果两个都没有 id，比较其他属性
             return false
         }
         return lhsId == rhsId
@@ -147,7 +143,7 @@ struct ClipboardHistory: @unchecked Sendable, Identifiable, Equatable, Fetchable
         }
         
         // Insert main history record
-        try insert(db) // 直接使用传入的 db
+        try insert(db)
         
         guard let historyId = id else { throw DatabaseError.insertFailed }
         
