@@ -57,7 +57,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.setActivationPolicy(.accessory)
     }
     
-    // 2. 在 DidFinish 中进行核心初始化和 UI 显示
     func applicationDidFinishLaunching(_ notification: Notification) {
         setupApplication()
         statusbar = StatusBarController()
@@ -67,6 +66,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             AppContext.shared.clipboardService?.cleanupWithRules()
         }
     }
+    
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        AppContext.shared.openPreferencesWindow()
+        return true
+    }
+
     
     private func setupApplication() {
         do {
@@ -140,15 +145,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private func showFatalErrorAlert(error: Error) {
         // 创建 Alert
         let alert = NSAlert()
-        alert.messageText = "应用程序启动失败"
-        alert.informativeText = "无法初始化核心组件，应用程序将退出。\n\n错误代码: \(error.localizedDescription)"
+        alert.messageText = "Application startup failed"
+        alert.informativeText = "Unable to initialize core components, the application will exit. \n\nError code: \(error.localizedDescription)"
         alert.alertStyle = .critical
-        alert.addButton(withTitle: "退出")
-        
-        // 运行 Alert (阻塞等待用户点击)
+        alert.addButton(withTitle: "Exit")
         alert.runModal()
-        
-        // ✅ 优雅退出，而不是制造崩溃
         NSApplication.shared.terminate(self)
     }
 }
@@ -186,19 +187,19 @@ class StatusBarController {
     }
     
     @objc func cleanup() {
-        Task {
+        DispatchQueue.global(qos: .utility).async {
             AppContext.shared.clipboardService?.cleanup(minutes: -1)
         }
     }
     
     @objc func cleanup5m() {
-        Task {
+        DispatchQueue.global(qos: .utility).async {
             AppContext.shared.clipboardService?.cleanup(minutes: 5)
         }
     }
     
     @objc func cleanup1h() {
-        Task {
+        DispatchQueue.global(qos: .utility).async {
             AppContext.shared.clipboardService?.cleanup(minutes: 60)
         }
     }

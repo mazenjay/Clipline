@@ -192,6 +192,10 @@ extension ClipboardViewModel {
     func clearOldData() {
         clipService.cleanupWithRules()
     }
+    
+    func release() {
+        clipService.release()
+    }
 }
 
 
@@ -267,11 +271,13 @@ extension ClipboardWindowController {
         viewModel.reset()
         
         // check clean
-        let lastDate = AppContext.shared.lastDatabaseCleanupDate
-        if Date().timeIntervalSince(lastDate) > 24 * 60 * 60 {
-            Task {
-                viewModel.clearOldData()
+        DispatchQueue.global(qos: .background).async {
+            let lastDate = AppContext.shared.lastDatabaseCleanupDate
+            if Date().timeIntervalSince(lastDate) > 24 * 60 * 60 {
+                self.viewModel.clearOldData()
+                AppContext.shared.lastDatabaseCleanupDate = Date()
             }
+            self.viewModel.release()
         }
     }
 

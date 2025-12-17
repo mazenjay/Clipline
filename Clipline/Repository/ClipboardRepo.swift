@@ -308,6 +308,12 @@ extension ClipboardRepository {
         }
     }
     
+    nonisolated func releaseUnusedMemory() {
+        try? dbQueue.writeWithoutTransaction { db in
+            try db.execute(sql: "PRAGMA shrink_memory")
+        }
+    }
+    
     
     // MARK: - Delete by Time Range
     

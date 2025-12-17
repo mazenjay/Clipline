@@ -124,4 +124,8 @@ class ClipboardService {
         _ = try? repo.deleteRecords(olderThanMinutes: minutes)
         try? repo.vacuum()
     }
+    
+    func release() {
+        repo.releaseUnusedMemory()
+    }
 }
