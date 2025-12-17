@@ -1,5 +1,5 @@
 <p align="center" style="text-align: center">
-	<img alt="logo" src="./docs/cliplinelogo.png" height="220px" width="220px">
+	<img alt="logo" src="./docs/cliplinelogo.png" height="120px" width="120px">
 </p>
 <h1 align="center">ClipLine</h1>
 <strong>
