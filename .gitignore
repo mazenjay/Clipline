@@ -1,0 +1,53 @@
+# --- macOS 杂项 ---
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# --- Xcode ---
+# 构建产物和中间文件
+build/
+DerivedData/
+
+# --- 用户特定配置 (User Data) ---
+# ⚠️ 关键：这一行会忽略断点、窗口布局、用户特定的 Schemes
+*.xcodeproj/xcuserdata/
+*.xcworkspace/xcuserdata/
+xcuserdata/
+
+# --- Xcode 状态文件 ---
+*.mode1v3
+*.mode2v3
+*.perspectivev3
+*.xcuserstate
+
+# --- Swift Package Manager (SPM) ---
+.build/
+.swiftpm/xcode/
+Packages/
+# 注意：Package.resolved 通常建议提交，用于锁定依赖版本
+
+# --- CocoaPods ---
+# 如果你使用 CocoaPods，通常不提交 Pods 目录，只提交 Podfile.lock
+Pods/
+# *.xcworkspace # 注意：如果你使用 Pods，通常需要提交 .xcworkspace 文件本身，但忽略里面的 userdatas
+
+# --- Carthage ---
+Carthage/Build/
+
+# --- Fastlane ---
+fastlane/report.xml
+fastlane/screenshots
+fastlane/test_output
+
+# --- 其他 ---
+*.moved-aside
+*.xccheckout
+*.xcscmblueprint
+
+# 崩溃日志
+*.crash
+
+# sqlite
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
