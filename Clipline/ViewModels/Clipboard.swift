@@ -10,6 +10,7 @@ import AppKit
 import SwiftUI
 
 
+
 // MARK: ClipboardViewModel
 class ClipboardViewModel: ObservableObject {
     
@@ -134,6 +135,7 @@ extension ClipboardViewModel {
                     let cnt = histories.count
                     self.histories.append(contentsOf: result.items)
                     self.scrollToRow = cnt
+                    self.hoveredIdx = cnt
                 }
                 
                 self.page += 1
@@ -173,8 +175,31 @@ extension ClipboardViewModel {
     }
     
     func paste() {
-        clipService.pasteItems(itemIds: selections)
-        selections = []
+        guard AppContext.shared.accessibilityService.checkAccessibility(isPrompt: true) else {
+            return
+        }
+        Task.detached(priority: .userInitiated) {
+            let content = await self.clipService.fetchContent(historyIds: self.selections)
+
+            DispatchQueue.main.async {
+                self.selections = []
+                NSPasteboard.general.writeToPasteboard(items: content)
+                let source = CGEventSource(stateID: .hidSystemState)
+                // disable local keyboard events
+                source?.setLocalEventsFilterDuringSuppressionState([.permitLocalMouseEvents, .permitSystemDefinedEvents], state: .eventSuppressionStateSuppressionInterval)
+                
+                let v = CGKeyCode(Key.v.rawValue)
+                
+                let keyVDown = CGEvent(keyboardEventSource: source, virtualKey: v, keyDown: true)
+                keyVDown?.flags = .maskCommand
+                
+                let keyVUp = CGEvent(keyboardEventSource: source, virtualKey: v, keyDown: false)
+                keyVUp?.flags = .maskCommand
+
+                keyVDown?.post(tap: .cgAnnotatedSessionEventTap)
+                keyVUp?.post(tap: .cgAnnotatedSessionEventTap)
+            }
+        }
     }
     
     func reset() {
@@ -366,6 +391,7 @@ class ClipboardNSWindow: NSPanel {
                 viewModel.selections = [itemId]
                 viewModel.paste()
             }
+            AppContext.shared.clipWindowController?.hideWindow(nil)
             return  // "吞掉"事件
 
         // PageUp/PageDown 键

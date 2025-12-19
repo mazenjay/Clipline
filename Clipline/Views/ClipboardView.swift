@@ -449,7 +449,7 @@ struct MetadataFooterView: View {
 
     private var typeDescription: String {
         if dataType.isFile() {
-            return "\(contents.count) file\(contents.count > 1 ? "s" : "")"
+            return String(localized: "\(contents.count) files", comment: "Description for file count in history list")
         }
         if dataType.isImage() {
             if let size = contents.first?.content.count {
@@ -458,7 +458,7 @@ struct MetadataFooterView: View {
             return "Image"
         }
         if let len = textLength {
-            return "\(len) chars"
+            return String(localized: "\(len) chars", comment: "Length of text content")
         }
         return "Text"
     }

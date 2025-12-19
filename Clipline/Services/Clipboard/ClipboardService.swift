@@ -18,7 +18,7 @@ class ClipboardService {
     
     init() throws {
         self.repo = try ClipboardRepository()
-        self.listener = try ClipboardListener(repo: repo)
+        self.listener = ClipboardListener(repo: repo)
     }
     
     func setCheckOnCopy(onCopy: @escaping (String) -> Bool) {
@@ -33,13 +33,9 @@ class ClipboardService {
         cleanRulesGetter = getter
     }
     
-    func listen() throws {
-        try listener.listen()
-    }
+    func startListening() { listener.listen() }
     
-    func shutdown() throws {
-        try listener.shutdown()
-    }
+    func shutdown() { listener.shutdown() }
     
     func search(keyword: String?, pageSize: Int = 30, page: Int = 0) -> (items: [ClipboardHistory], hasMore: Bool)? {
         guard
@@ -73,12 +69,8 @@ class ClipboardService {
         return contents
     }
     
-    func pasteItems(itemIds: [Int64]) {
-        
-        guard let histories = try? repo.selectData(historyIds: itemIds) else {
-            return
-        }
-        
+    func fetchContent(historyIds: [Int64]) -> [[NSPasteboard.PasteboardContent]] {
+        guard let histories = try? repo.selectData(historyIds: historyIds) else { return [] }
         var items: [[NSPasteboard.PasteboardContent]] = []
         for history in histories {
             for item in history.items {
@@ -99,13 +91,7 @@ class ClipboardService {
                 items.append(contents)
             }
         }
-        
-        NSPasteboard.general.writeToPasteboard(items: items)
-        
-        _ = try? repo.updateLastUsed(historyIds: itemIds)
-        
-        NSPasteboard.paste()
-        
+        return items
     }
     
     func cleanupWithRules(rules: [NSPasteboard.CleanRule] = []) {

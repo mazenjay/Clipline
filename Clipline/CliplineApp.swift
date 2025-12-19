@@ -28,22 +28,56 @@ struct CliplineApp: App {
 class AppContext: ObservableObject {
     static let shared = AppContext()
     
-    @AppStorage("lastDatabaseCleanupDate") var lastDatabaseCleanupDate: Date = Date.now
+    let preferences: PreferencesViewModel
+    let shortcutsService: ShortcutsService
+    let clipboardService: ClipboardService
+    let accessibilityService: AccessibilityService
     
-    let preferences: PreferencesViewModel = PreferencesViewModel()
     var clipWindowController: ClipboardWindowController? = nil
     var prefWindowController: PreferencesWindowController? = nil
-    var shortcutsService: ShortcutsService? = nil
-    var clipboardService: ClipboardService? = nil
-
-    private init() {}
     
-    func openPreferencesWindow() {
+    @AppStorage("lastDatabaseCleanupDate") var lastDatabaseCleanupDate: Date = Date.now
+
+    private init() {
+        do {
+            preferences = PreferencesViewModel()
+            clipboardService = try ClipboardService()
+            shortcutsService = KeyboardShortcutsImpl()
+            accessibilityService = AccessibilityService()
+        } catch {
+            Self.showFatalErrorAlert(error: error)
+        }
+    }
+    
+    
+    @MainActor func openPreferencesWindow() {
         if self.prefWindowController == nil {
             let prefView = PreferencesView(viewModel: preferences)
             self.prefWindowController = PreferencesWindowController(viewModel: preferences, content: prefView)
         }
         prefWindowController?.showWindow(nil)
+    }
+    
+    
+    @MainActor static func showFatalErrorAlert(error: Error) -> Never {
+        let alert = NSAlert()
+        alert.messageText = String(
+            localized: "Application startup failed",
+            comment: "Alert title: Fatal error"
+        )
+        alert.informativeText = String(
+            localized: "Unable to initialize core components, the application will exit.\n\nError code: \(error.localizedDescription)",
+            comment: "Alert body: Fatal error description with error code"
+        )
+        
+        alert.alertStyle = .critical
+        alert.addButton(withTitle: String(
+            localized: "Exit",
+            comment: "Button: Exit application"
+        ))
+        
+        alert.runModal()
+        exit(1)
     }
     
 }
@@ -58,12 +92,49 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
     
     func applicationDidFinishLaunching(_ notification: Notification) {
-        setupApplication()
+        
+        // check accessibility
+        if !AppContext.shared.accessibilityService.checkAccessibility(isPrompt: false) {
+            AppContext.shared.accessibilityService.showAccessibilityAuthenticationAlert()
+        }
+        
+        // setup clipboard listener
+        //
+        // set to ignore clipboard data from these apps
+        AppContext.shared.clipboardService.setCheckOnCopy { sourceApp in
+            !AppContext.shared.preferences.ignoredApps.contains(sourceApp)
+        }
+        
+        // set ignored clipboard data types
+        AppContext.shared.clipboardService.setCheckOnParsed { content in
+            let type = NSPasteboard.PasteboardType(content.mainCategory)
+            if type.isText() { return AppContext.shared.preferences.keepPlainText }
+            if type.isFile() { return AppContext.shared.preferences.keepFileLists }
+            if type.isImage() { return AppContext.shared.preferences.keepImages }
+            return AppContext.shared.preferences.keepOthers
+        }
+        
+        // setup default shortcuts
+        AppContext.shared.shortcutsService.configureDefaults()
+        
+        // setup views
+        let clipViewModel = ClipboardViewModel(clipService: AppContext.shared.clipboardService)
+        let clipView = ClipboardView(viewModel: clipViewModel)
+        AppContext.shared.clipWindowController = ClipboardWindowController(viewModel: clipViewModel, content: clipView)
         statusbar = StatusBarController()
         
-        Task {
-            try? await Task.sleep(nanoseconds: 60 * 1_000_000_000)
-            AppContext.shared.clipboardService?.cleanupWithRules()
+        // listen
+        AppContext.shared.clipboardService.startListening()
+        AppContext.shared.shortcutsService.startListening { action in
+            switch action {
+            case .toggleClipboardWindow:
+                AppContext.shared.clipWindowController?.showWindow(nil)
+            }
+        }
+        
+        // cleanup
+        DispatchQueue.global(qos: .background).async {
+            AppContext.shared.clipboardService.cleanupWithRules()
         }
     }
     
@@ -71,87 +142,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         AppContext.shared.openPreferencesWindow()
         return true
     }
-
     
-    private func setupApplication() {
-        do {
-            
-            let clipboardService = try ClipboardService()
-            
-            // Set to ignore clipboard data from these apps
-            clipboardService.setCheckOnCopy { sourceApp in
-                !AppContext.shared.preferences.ignoredApps.contains(sourceApp)
-            }
-            
-            // Set ignored clipboard data types
-            clipboardService.setCheckOnParsed { content in
-                let type = NSPasteboard.PasteboardType(content.mainCategory)
-                if type.isText() {
-                    return AppContext.shared.preferences.keepPlainText
-                }
-                if type.isFile() {
-                    return AppContext.shared.preferences.keepFileLists
-                }
-                if type.isImage() {
-                    return AppContext.shared.preferences.keepImages
-                }
-                
-                return AppContext.shared.preferences.keepOthers
-            }
-            
-            // Set clean rules getter
-            clipboardService.setCleanRulesGetter {
-                [
-                    .init(
-                        beforeAt: Date.before(AppContext.shared.preferences.plainTextDuration.rawValue),
-                        types: [.string]
-                    ),
-                    .init(
-                        beforeAt: Date.before(AppContext.shared.preferences.imagesDuration.rawValue),
-                        types: [.tiff, .png]
-                    ),
-                    .init(
-                        beforeAt: Date.before(AppContext.shared.preferences.fileListsDuration.rawValue),
-                        types: [.fileURL]
-                    )
-                ]
-            }
-                        
-            // start to listen clipboard
-            try clipboardService.listen()
-            let clipboardViewModel = ClipboardViewModel(clipService: clipboardService)
-            let clipboardView = ClipboardView(viewModel: clipboardViewModel)
-            AppContext.shared.clipboardService = clipboardService
-            
-            // Initialize window
-            AppContext.shared.clipWindowController = ClipboardWindowController(
-                viewModel: clipboardViewModel,
-                content: clipboardView
-            )
-            AppContext.shared.shortcutsService = KeyboardShortcutsImpl()
-            AppContext.shared.shortcutsService?.startListening { action in
-                switch action {
-                case .toggleClipboardWindow:
-                    AppContext.shared.clipWindowController?.showWindow(nil)
-                }
-            }
-            AppContext.shared.shortcutsService?.configureDefaults()
-            
-        } catch {
-            showFatalErrorAlert(error: error)
-        }
-    }
-    
-    private func showFatalErrorAlert(error: Error) {
-        // 创建 Alert
-        let alert = NSAlert()
-        alert.messageText = "Application startup failed"
-        alert.informativeText = "Unable to initialize core components, the application will exit. \n\nError code: \(error.localizedDescription)"
-        alert.alertStyle = .critical
-        alert.addButton(withTitle: "Exit")
-        alert.runModal()
-        NSApplication.shared.terminate(self)
-    }
 }
 
 class StatusBarController {
@@ -188,19 +179,19 @@ class StatusBarController {
     
     @objc func cleanup() {
         DispatchQueue.global(qos: .utility).async {
-            AppContext.shared.clipboardService?.cleanup(minutes: -1)
+            AppContext.shared.clipboardService.cleanup(minutes: -1)
         }
     }
     
     @objc func cleanup5m() {
         DispatchQueue.global(qos: .utility).async {
-            AppContext.shared.clipboardService?.cleanup(minutes: 5)
+            AppContext.shared.clipboardService.cleanup(minutes: 5)
         }
     }
     
     @objc func cleanup1h() {
         DispatchQueue.global(qos: .utility).async {
-            AppContext.shared.clipboardService?.cleanup(minutes: 60)
+            AppContext.shared.clipboardService.cleanup(minutes: 60)
         }
     }
 
@@ -215,12 +206,11 @@ extension NSWorkspace {
     // Use NSCache to automatically manage memory, which will automatically clean up when the system memory is tight
     private nonisolated static let iconCache: NSCache<NSString, NSImage> = {
         let cache = NSCache<NSString, NSImage>()
-        cache.countLimit = 200 // 限制缓存数量，防止无限增长
+        cache.countLimit = 200
         return cache
     }()
     
-    // 目标缓存尺寸。你的UI显示是 24x24，我们存 48x48 以保证 Retina 屏幕清晰，
-    // 但比原图（通常 512+）节省几十倍内存。
+    
     // Target cache size. Your UI display is 24x24, we store 48x48 to ensure clarity on Retina screens,
     // but saves several tens of times the memory compared to the original image (usually 512+).
     private nonisolated static let cacheSize = NSSize(width: 48, height: 48)
@@ -233,22 +223,17 @@ extension NSWorkspace {
         
         let key = bundleId as NSString
         
-        // 命中缓存：直接返回，耗时 O(1)，不会卡顿 UI
         // Hit cache: Directly return, takes O(1) time, will not freeze UI
         if let cachedImage = Self.iconCache.object(forKey: key) {
             return cachedImage
         }
         
-        // B. 未命中缓存：尝试查找
-        // 注意：urlForApplication 在首次查找时可能有微小耗时，但在 macOS 上通常很快
         if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleId) {
             let fullImage = NSWorkspace.shared.icon(forFile: url.path)
             
-            // C. 关键步骤：重绘图片大小
-            // 直接存 fullImage 会占用大量内存，这里将其重绘为 48x48
+            // Redraw image size
             let resizedImage = fullImage.resize(to: Self.cacheSize)
-            
-            // 存入缓存
+            // put in cache
             Self.iconCache.setObject(resizedImage, forKey: key)
             
             return resizedImage
@@ -280,8 +265,6 @@ extension NSImage {
     nonisolated func resize(to targetSize: NSSize) -> NSImage {
         let newImage = NSImage(size: targetSize)
         newImage.lockFocus()
-        
-        // 高质量重绘
         self.draw(
             in: NSRect(origin: .zero, size: targetSize),
             from: NSRect(origin: .zero, size: self.size),
@@ -296,54 +279,6 @@ extension NSImage {
 
 
 extension Date {
-    /// 返回智能格式化的时间字符串
-//    func smartDescription() -> String {
-//        let calendar = Calendar.current
-//        let now = Date()
-//        let formatter = DateFormatter()
-//        formatter.locale = Locale.current
-//
-//        // ---- 情况 1：今天 ----
-//        if calendar.isDateInToday(self) {
-////            formatter.dateFormat = "'Today' HH:mm"
-//            formatter.setLocalizedDateFormatFromTemplate("HH:mm")
-//            let timeStr = formatter.string(from: self)
-//            return "\(String(localized: "Today")) \(timeStr)"
-//        }
-//
-//        // ---- 情况 2：昨天 ----
-//        if calendar.isDateInYesterday(self) {
-//            formatter.setLocalizedDateFormatFromTemplate("HH:mm")
-//            let timeStr = formatter.string(from: self)
-//            return "\(String(localized: "Today")) \(timeStr)"
-//        }
-//
-//        // ---- 情况 3：7天内 → 相对时间（比如 “3 days ago”）----
-//        if let days = calendar.dateComponents([.day], from: self, to: now).day,
-//           days < 7 {
-//            if days == 0 {
-//                let hours = calendar.dateComponents([.hour], from: self, to: now).hour ?? 0
-//                if hours > 0 {
-//                    return "\(hours)h ago"
-//                } else {
-//                    let minutes = calendar.dateComponents([.minute], from: self, to: now).minute ?? 0
-//                    return "\(minutes)m ago"
-//                }
-//            }
-//            return "\(days)d ago"
-//        }
-//
-//        // ---- 情况 4：同一年 → 月份 + 日 + 时间 ----
-//        if calendar.isDate(self, equalTo: now, toGranularity: .year) {
-//            formatter.dateFormat = "MMM d, HH:mm"  // Oct 10, 12:30
-//            return formatter.string(from: self)
-//        }
-//
-//        // ---- 情况 5：不同年份 ----
-//        formatter.dateFormat = "yyyy MMM d, HH:mm"
-//        return formatter.string(from: self)
-//    }
-    
     func smartDescription() -> String {
         let calendar = Calendar.current
         let now = Date()

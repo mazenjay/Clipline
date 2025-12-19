@@ -15,7 +15,7 @@ import UniformTypeIdentifiers
 // MARK: expand dyn type
 extension NSPasteboard.PasteboardType {
     
-    static let ignore = NSPasteboard.PasteboardType("dyn.clipline.marker.ignore")
+    static let clipline = NSPasteboard.PasteboardType("dyn.clipline.mark")
     
     static let remote = NSPasteboard.PasteboardType("com.apple.is-remote-clipboard")
     
@@ -130,6 +130,7 @@ extension NSPasteboard {
         let sourceAppBundleID: String
         let items: [[NSPasteboard.PasteboardContent]]
         let isFromRemote: Bool
+        let isFromClipline: Bool
     }
     
     // MARK: parsed clipboard content
@@ -208,9 +209,10 @@ extension NSPasteboard {
         }
         var snapshotItems: [[PasteboardContent]] = []
         var isRemote: Bool = false
+        var isClipline: Bool = false
         for item in pasteboardItems {
             
-            if item.types.contains(.ignore) { return nil }
+            if !isClipline && item.types.contains(.clipline) { isClipline = true }
             if !isRemote && item.types.contains(.remote) { isRemote = true }
             let availableTypes = item.types
             var contentList: [PasteboardContent] = []
@@ -234,7 +236,8 @@ extension NSPasteboard {
         return .init(
             sourceAppBundleID: sourceApp,
             items: snapshotItems,
-            isFromRemote: isRemote
+            isFromRemote: isRemote,
+            isFromClipline: isClipline
         )
     }
     
@@ -262,7 +265,7 @@ extension NSPasteboard {
         var pasteboardItems: [NSPasteboardItem] = []
         for hi in items {
             let item = NSPasteboardItem()
-            item.setData(Data(), forType: .ignore)
+            item.setData(Data(), forType: .clipline)
             for content in hi {
                 item.setData(content.content, forType: content.type)
             }
@@ -623,27 +626,6 @@ extension NSPasteboard {
     
     static func previewFile(for url: URL) -> NSImage? {
         return NSWorkspace.shared.icon(forFile: url.path)
-    }
-    
-    
-    static func paste() {
-        let source = CGEventSource(stateID: .hidSystemState)
-        let keyVDown = CGEvent(
-            keyboardEventSource: source,
-            virtualKey: 0x09,
-            keyDown: true
-        )  // 0x09 is the key code for 'v'
-        keyVDown?.flags = .maskCommand
-        let keyVUp = CGEvent(
-            keyboardEventSource: source,
-            virtualKey: 0x09,
-            keyDown: false
-        )
-        keyVUp?.flags = .maskCommand
-
-        let loc = CGEventTapLocation.cghidEventTap
-        keyVDown?.post(tap: loc)
-        keyVUp?.post(tap: loc)
     }
     
 }

@@ -4,8 +4,109 @@
     "" : {
 
     },
+    "%lld chars" : {
+      "comment" : "Length of text content",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "1 char"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "%lld chars"
+                }
+              }
+            }
+          }
+        },
+        "zh-Hans" : {
+          "variations" : {
+            "plural" : {
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld 个字符"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld files" : {
+      "comment" : "Description for file count in history list",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "1 file"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "%lld files"
+                }
+              }
+            }
+          }
+        },
+        "zh-Hans" : {
+          "variations" : {
+            "plural" : {
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld 个文件"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "Application startup failed" : {
+      "comment" : "Alert title: Fatal error",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "应用程序启动失败"
+          }
+        }
+      }
+    },
+    "Clipline requires accessibility permissions" : {
+      "comment" : "Alert title: Asking for accessibility permission",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clipline需要辅助功能权限"
+          }
+        }
+      }
+    },
     "Content copied from these apps will not be saved to history.\nOnly focusable applications can be ignored." : {
-
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "从这些应用复制的内 容不会保存到历史记录。\n只有可聚焦的应用可以被忽略。"
+          }
+        }
+      }
     },
     "Copied at %@" : {
       "localizations" : {
@@ -17,17 +118,60 @@
         }
       }
     },
+    "Exit" : {
+      "comment" : "Button: Exit application",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "退出"
+          }
+        }
+      }
+    },
     "Hello, world!" : {
 
     },
     "History" : {
-
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "历史"
+          }
+        }
+      }
     },
     "Image preview unavailable" : {
-
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "图片无法预览"
+          }
+        }
+      }
+    },
+    "Later" : {
+      "comment" : "Button: Dismiss alert",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "稍后"
+          }
+        }
+      }
     },
     "Load More Histories" : {
-
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "加载更多的历史记录"
+          }
+        }
+      }
     },
     "No matching clipboard history items" : {
       "localizations" : {
@@ -39,8 +183,41 @@
         }
       }
     },
+    "Open Settings" : {
+      "comment" : "Button: Go to System Settings",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打开设置"
+          }
+        }
+      }
+    },
+    "Quit App" : {
+      "comment" : "Button: Terminate application",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "退出应用"
+          }
+        }
+      }
+    },
     "Select an item to preview" : {
 
+    },
+    "To monitor clipboard content and simulate paste operations, the application needs accessibility permissions.\n\nPlease click 'Open Settings', then check 'Clipline' in the 'Privacy & Security' -> 'Accessibility' list." : {
+      "comment" : "Alert body: Instructions on how to enable permissions",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "为了监听剪贴板内容和模拟粘贴操作，应用需要辅助功能权限。\n\n请点击“打开设置”，在“隐私与安全性” -> “辅助功能”列表中勾选 Clipline。"
+          }
+        }
+      }
     },
     "Today" : {
       "localizations" : {
@@ -57,6 +234,17 @@
     },
     "Todo List Placeholder" : {
 
+    },
+    "Unable to initialize core components, the application will exit.\n\nError code: %@" : {
+      "comment" : "Alert body: Fatal error description with error code",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法初始化核心组件，应用程序将退出。\n\n错误代码：%@"
+          }
+        }
+      }
     },
     "When disabled, the clipboard viewer can still show your snippets." : {
 

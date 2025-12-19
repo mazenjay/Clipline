@@ -12,11 +12,6 @@ import Foundation
 
 class ClipboardListener: @unchecked Sendable {
     
-    enum Err: Error {
-        case listenError
-        case shutdownError
-    }
-    
     private var timer: DispatchSourceTimer?
     private let checkInterval: TimeInterval = 0.2
     private var lastChangeCount: Int
@@ -27,14 +22,14 @@ class ClipboardListener: @unchecked Sendable {
     var onParsed: (NSPasteboard.ParsedResult) -> Bool = {_ in true}
     var cleanRulesGetter: () -> [NSPasteboard.CleanRule] = { [] }
 
-    init(repo: ClipboardRepository) throws {
+    init(repo: ClipboardRepository) {
         self.repo = repo
         self.lastChangeCount = NSPasteboard.general.changeCount
         self.queue = DispatchQueue(label: "com.mazen.clipline.clipboard-listener.queue", qos: .utility)
     }
     
-    func listen() throws {
-        if timer != nil { try shutdown() }
+    func listen() {
+        if timer != nil { shutdown() }
 
         let timer = DispatchSource.makeTimerSource(queue: queue)
         self.timer = timer
@@ -47,9 +42,8 @@ class ClipboardListener: @unchecked Sendable {
         timer.resume()
     }
     
-    func shutdown() throws {
-        guard let timer = self.timer else { throw Err.shutdownError }
-        timer.cancel()
+    func shutdown() {
+        timer?.cancel()
         self.timer = nil
     }
     

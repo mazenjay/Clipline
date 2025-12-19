@@ -6,8 +6,8 @@
 //
 
 import AppKit
-import SwiftUI
 import QuartzCore
+import SwiftUI
 
 enum ScrollPosition {
     case top
@@ -20,7 +20,7 @@ class NSStepScrollView: NSScrollView {
     var stepHeight: CGFloat = 100.0
 
     private var scrollAccumulator: CGFloat = 0.0
-    
+
     var onScrollPositionChanged: ((Int) -> Void)?
 
     override func scrollWheel(with event: NSEvent) {
@@ -40,20 +40,20 @@ class NSStepScrollView: NSScrollView {
             scrollAccumulator -= scrollAmount
         }
     }
-    
+
     private func scroll(by amount: CGFloat) {
-        guard let documentView = self.documentView else { return }
-        
+        guard self.documentView != nil else { return }
+
         let currentY = contentView.bounds.origin.y
         let newY = currentY - amount
         let maxY = calculateMaxScrollY()
         let clampedY = clamp(newY, min: 0, max: maxY)
-        
+
         guard clampedY != currentY else { return }
         performScroll(to: clampedY)
-        
+
     }
-        
+
     func scrollByStep(_ direction: Int) {
         let scrollAmount = CGFloat(direction) * stepHeight
         scroll(by: scrollAmount)
@@ -123,7 +123,7 @@ class NSStepScrollView: NSScrollView {
         reflectScrolledClipView(contentView)
         notifyScrollPositionChanged()
     }
-    
+
     private func notifyScrollPositionChanged() {
         let currentY = contentView.bounds.origin.y
         let firstVisibleIndex = Int(round(currentY / stepHeight))
@@ -133,12 +133,11 @@ class NSStepScrollView: NSScrollView {
 
 struct StepScrollList<Content: View>: NSViewRepresentable {
     private var proxy: StepScrollViewProxy?
-    
+
     let stepHeight: CGFloat
     let content: () -> Content
     let onScrollPositionChanged: ((Int) -> Void)?
     var scrollToIndex: Binding<Int?>?
-
 
     init(
         proxy: StepScrollViewProxy? = nil,
@@ -163,11 +162,10 @@ struct StepScrollList<Content: View>: NSViewRepresentable {
         scrollView.onScrollPositionChanged = onScrollPositionChanged
         scrollView.lineScroll = self.stepHeight
         scrollView.scrollsDynamically = false
-        
+
         let hostingView = NSHostingView(rootView: content())
         hostingView.translatesAutoresizingMaskIntoConstraints = false
         scrollView.documentView = hostingView
-        
 
         NSLayoutConstraint.activate([
             hostingView.leadingAnchor.constraint(
@@ -187,60 +185,88 @@ struct StepScrollList<Content: View>: NSViewRepresentable {
     func updateNSView(_ nsView: NSStepScrollView, context: Context) {
         nsView.stepHeight = self.stepHeight
         nsView.lineScroll = self.stepHeight
-        
+
         nsView.onScrollPositionChanged = onScrollPositionChanged
         if let proxy = self.proxy {
             proxy.scrollAction = { [weak nsView] index, pos in
                 guard let nsView = nsView else { return }
                 nsView.scrollTo(index: index, position: pos)
             }
-            
+
             proxy.stepScrollAction = { [weak nsView] direction in
                 nsView?.scrollByStep(direction)
             }
         }
-        
-        if let hostingView = nsView.documentView as? NSHostingView<Content> {
-            
-            hostingView.rootView = self.content()
-            hostingView.invalidateIntrinsicContentSize()
-            
-            if let binding = scrollToIndex, let targetIndex = binding.wrappedValue {
+
+        // Check if a "hard cut jump" is needed.
+        if let binding = scrollToIndex, let targetIndex = binding.wrappedValue {
+            if let hostingView = nsView.documentView as? NSHostingView<Content>
+            {
+                var transaction = Transaction()
+                transaction.disablesAnimations = true
+                withTransaction(transaction) {
+                    hostingView.rootView = self.content()
+                }
+                hostingView.invalidateIntrinsicContentSize()
                 hostingView.layoutSubtreeIfNeeded()
                 let targetY = CGFloat(targetIndex) * stepHeight
-                let maxY = max(0, hostingView.frame.height - nsView.contentView.bounds.height)
+                let maxY = max(
+                    0,
+                    hostingView.frame.height - nsView.contentView.bounds.height
+                )
                 let clampedY = min(targetY, maxY)
-                
-                // Forcefully close all implicit animations
-                CATransaction.begin()
-                CATransaction.setDisableActions(true)
-                CATransaction.setAnimationDuration(0)
-                nsView.contentView.bounds.origin = CGPoint(x: 0, y: clampedY)
+
+                NSAnimationContext.beginGrouping()
+                NSAnimationContext.current.duration = 0
+                NSAnimationContext.current.allowsImplicitAnimation = false
+
+                let newOrigin = CGPoint(x: 0, y: clampedY)
+                nsView.contentView.bounds.origin = newOrigin
+
                 nsView.reflectScrolledClipView(nsView.contentView)
-                CATransaction.commit()
-                
+
+                NSAnimationContext.endGrouping()
+
                 DispatchQueue.main.async {
                     binding.wrappedValue = nil
                 }
             }
         } else {
-            let newHostingView = NSHostingView(rootView: content())
-            newHostingView.translatesAutoresizingMaskIntoConstraints = false
-            newHostingView.layer?.backgroundColor = NSColor.clear.cgColor
-            nsView.documentView = newHostingView
+            if let hostingView = nsView.documentView as? NSHostingView<Content>
+            {
+                hostingView.rootView = self.content()
+                hostingView.invalidateIntrinsicContentSize()
+            } else {
+                let newHostingView = NSHostingView(rootView: content())
+                newHostingView.translatesAutoresizingMaskIntoConstraints = false
+                newHostingView.layer?.backgroundColor = NSColor.clear.cgColor
+                nsView.documentView = newHostingView
+                NSLayoutConstraint.activate([
+                    newHostingView.leadingAnchor.constraint(
+                        equalTo: nsView.contentView.leadingAnchor
+                    ),
+                    newHostingView.trailingAnchor.constraint(
+                        equalTo: nsView.contentView.trailingAnchor
+                    ),
+                    newHostingView.topAnchor.constraint(
+                        equalTo: nsView.contentView.topAnchor
+                    ),
+                ])
+            }
         }
+
     }
 }
 
 class StepScrollViewProxy {
     fileprivate var scrollAction: ((Int, ScrollPosition) -> Void)?
-    
+
     fileprivate var stepScrollAction: ((Int) -> Void)?
 
     func scrollTo(index: Int, position: ScrollPosition = .top) {
         scrollAction?(index, position)
     }
-    
+
     func scrollByStep(_ direction: Int) {
         stepScrollAction?(direction)
     }
