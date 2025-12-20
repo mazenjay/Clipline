@@ -402,11 +402,15 @@ struct ImagePreviewView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .task(id: content.id) {
             isLoading = true
-            image = nil
+            try? await Task.sleep(nanoseconds: 100_000_000)
+            guard !Task.isCancelled else { return }
             let result = await NSPasteboard.preview(for: content.content, with: content.type)
             guard !Task.isCancelled else { return }
             image = result
             isLoading = false
+        }
+        .onDisappear {
+            image = nil
         }
     }
 }
