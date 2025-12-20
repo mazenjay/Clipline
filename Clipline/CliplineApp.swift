@@ -36,8 +36,6 @@ class AppContext: ObservableObject {
     var clipWindowController: ClipboardWindowController? = nil
     var prefWindowController: PreferencesWindowController? = nil
     
-    @AppStorage("lastDatabaseCleanupDate") var lastDatabaseCleanupDate: Date = Date.now
-
     private init() {
         do {
             preferences = PreferencesViewModel()
@@ -100,19 +98,36 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         
         // setup clipboard listener
         //
-        // set to ignore clipboard data from these apps
-        AppContext.shared.clipboardService.setCheckOnCopy { sourceApp in
-            !AppContext.shared.preferences.ignoredApps.contains(sourceApp)
-        }
-        
-        // set ignored clipboard data types
-        AppContext.shared.clipboardService.setCheckOnParsed { content in
-            let type = NSPasteboard.PasteboardType(content.mainCategory)
-            if type.isText() { return AppContext.shared.preferences.keepPlainText }
-            if type.isFile() { return AppContext.shared.preferences.keepFileLists }
-            if type.isImage() { return AppContext.shared.preferences.keepImages }
-            return AppContext.shared.preferences.keepOthers
-        }
+        AppContext.shared.clipboardService
+            .checkOnCopy { sourceApp in  // set to ignore clipboard data from these apps and clean check
+                !AppContext.shared.preferences.ignoredApps.contains(sourceApp)
+            }
+            .checkOnParsed { content in         // set ignored clipboard data types
+                let type = NSPasteboard.PasteboardType(content.mainCategory)
+                if type.isText() { return AppContext.shared.preferences.keepPlainText }
+                if type.isFile() { return AppContext.shared.preferences.keepFileLists }
+                if type.isImage() { return AppContext.shared.preferences.keepImages }
+                return AppContext.shared.preferences.keepOthers
+            }
+            .cleanRulesGetter = {
+                [
+                    .init(
+                        time: Date.before(AppContext.shared.preferences.plainTextDuration.rawValue),
+                        types: [.string, .html, .rtf],
+                        by: .before
+                    ),
+                    .init(
+                        time: Date.before(AppContext.shared.preferences.imagesDuration.rawValue),
+                        types: [.tiff, .png],
+                        by: .before
+                    ),
+                    .init(
+                        time: Date.before(AppContext.shared.preferences.fileListsDuration.rawValue),
+                        types: [.fileURL, .pdf],
+                        by: .before
+                    ),
+                ]
+            }
         
         // setup default shortcuts
         AppContext.shared.shortcutsService.configureDefaults()
@@ -124,18 +139,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         statusbar = StatusBarController()
         
         // listen
-        AppContext.shared.clipboardService.startListening()
         AppContext.shared.shortcutsService.startListening { action in
             switch action {
             case .toggleClipboardWindow:
                 AppContext.shared.clipWindowController?.showWindow(nil)
             }
         }
-        
-        // cleanup
-        DispatchQueue.global(qos: .background).async {
-            AppContext.shared.clipboardService.cleanupWithRules()
-        }
+        AppContext.shared.clipboardService.startListening()
     }
     
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
@@ -179,19 +189,19 @@ class StatusBarController {
     
     @objc func cleanup() {
         DispatchQueue.global(qos: .utility).async {
-            AppContext.shared.clipboardService.cleanup(minutes: -1)
+            AppContext.shared.clipboardService.cleanup(rules: [.all])
         }
     }
     
     @objc func cleanup5m() {
         DispatchQueue.global(qos: .utility).async {
-            AppContext.shared.clipboardService.cleanup(minutes: 5)
+            AppContext.shared.clipboardService.cleanup(rules: [.init(time: Date.before(byAdding: .minute, 5), types: [], by: .after)])
         }
     }
     
     @objc func cleanup1h() {
         DispatchQueue.global(qos: .utility).async {
-            AppContext.shared.clipboardService.cleanup(minutes: 60)
+            AppContext.shared.clipboardService.cleanup(rules: [.init(time: Date.before(byAdding: .hour, 1), types: [], by: .after)])
         }
     }
 
@@ -329,9 +339,9 @@ extension Date {
     }
     
     
-    static func before(_ hours: Int) -> Self? {
-        guard hours != 0 else { return nil }
+    static func before(byAdding: Calendar.Component = .hour, _ times: Int) -> Self? {
+        guard times != 0 else { return nil }
         let calendar = Calendar.current
-        return calendar.date(byAdding: .hour, value: -hours, to: now)
+        return calendar.date(byAdding: byAdding, value: -times, to: now)
     }
 }

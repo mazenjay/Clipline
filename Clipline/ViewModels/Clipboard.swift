@@ -175,7 +175,10 @@ extension ClipboardViewModel {
     }
     
     func paste() {
-        guard AppContext.shared.accessibilityService.checkAccessibility(isPrompt: true) else {
+        guard AppContext.shared.accessibilityService.checkAccessibility(isPrompt: false) else {
+            DispatchQueue.main.async {
+                AppContext.shared.accessibilityService.showAccessibilityAuthenticationAlert()
+            }
             return
         }
         Task.detached(priority: .userInitiated) {
@@ -212,14 +215,6 @@ extension ClipboardViewModel {
         searchTask?.cancel()
         currentScrollTopIndex = 0
         shouldRespondToHover = false
-    }
-    
-    func clearOldData() {
-        clipService.cleanupWithRules()
-    }
-    
-    func release() {
-        clipService.release()
     }
 }
 
@@ -294,16 +289,7 @@ extension ClipboardWindowController {
     func hideWindow(_ sender: Any?) {
         window?.orderOut(sender)
         viewModel.reset()
-        
-        // check clean
-        DispatchQueue.global(qos: .background).async {
-            let lastDate = AppContext.shared.lastDatabaseCleanupDate
-            if Date().timeIntervalSince(lastDate) > 24 * 60 * 60 {
-                self.viewModel.clearOldData()
-                AppContext.shared.lastDatabaseCleanupDate = Date()
-            }
-            self.viewModel.release()
-        }
+        AppContext.shared.clipboardService.releaseUnusedMemory()
     }
 
     func toggle() {
@@ -370,41 +356,45 @@ class ClipboardNSWindow: NSPanel {
         if event.modifierFlags.contains(.control) {
             if event.charactersIgnoringModifiers?.lowercased() == "p" {
                 navigate(direction: .up, isRepeat: event.isARepeat)
-                return  // "吞掉"事件，不再传递
+                return
             }
             if event.charactersIgnoringModifiers?.lowercased() == "n" {
                 navigate(direction: .down, isRepeat: event.isARepeat)
-                return  // "吞掉"事件
+                return
             }
         }
 
         switch Int(event.keyCode) {
-        // Escape 键
+        // Escape
         case Key.escape.rawValue:
             AppContext.shared.clipWindowController?.hideWindow(nil)
             return
 
-        // Enter/Return 键
+        // Enter/Return
         case Key.return.rawValue:
             if let hoveredItem = viewModel.hoveredItem,
                let itemId = hoveredItem.id {
+                
+                if hoveredItem.loadMore {
+                    viewModel.loadHistories()
+                    return
+                }
                 viewModel.selections = [itemId]
                 viewModel.paste()
+                AppContext.shared.clipWindowController?.hideWindow(nil)
             }
-            AppContext.shared.clipWindowController?.hideWindow(nil)
-            return  // "吞掉"事件
+            return
 
-        // PageUp/PageDown 键
+        // PageUp/PageDown
         case Key.upArrow.rawValue:
             navigate(direction: .up, isRepeat: event.isARepeat)
-            return  // "吞掉"事件
+            return
 
         case Key.downArrow.rawValue:
             navigate(direction: .down, isRepeat: event.isARepeat)
-            return  // "吞掉"事件
+            return
 
         default:
-            // 对于所有其他按键，返回原始事件，让 TextField 可以处理
             super.sendEvent(event)
             return
         }
@@ -426,31 +416,21 @@ extension ClipboardNSWindow {
     }
     
     func navigate(direction: NavigationDirection, isRepeat: Bool = false) {
-        //        NSCursor.hide()
         let count = viewModel.itemsForTableView.count
-        // 如果列表为空，则不执行任何操作
         guard count > 0 else { return }
 
-        // 确定当前索引，如果当前没有悬停项，我们将设定一个默认起点
+        // Confirm the current index. If there is no hovering item currently, we will set a default starting point.
         guard let currentIndex = viewModel.hoveredIdx else {
             return
         }
-        
-//        guard let hoveredItem = hoveredItem, !isKeyReleased, !hoveredItem.loadMore else {
-//            return
-//        }
 
-        //        let lastVisibleRowIndexInPage = visibleRowCount > 0 ? visibleRowCount - 1 : 0
-        //        let isAtTopEdge = (currentIndex % visibleRowCount == 0) || (currentIndex == 0)
-        //        let isAtBottomEdge = (currentIndex % visibleRowCount == lastVisibleRowIndexInPage) || (currentIndex == count - 1)
-
-        let firstVisibleIndex = viewModel.currentScrollTopIndex  // 你需要维护这个值
+        let firstVisibleIndex = viewModel.currentScrollTopIndex
         let lastVisibleIndex = min(
             firstVisibleIndex + viewModel.visibleRowCount - 1,
             count - 1
         )
 
-        // ✅ 判断是否在视窗边缘
+        // ✅ Determine if it is on the edge of the window
         let isAtTopEdge = (currentIndex == firstVisibleIndex)
         let isAtBottomEdge = (currentIndex == lastVisibleIndex)
 
@@ -462,29 +442,26 @@ extension ClipboardNSWindow {
         switch direction {
         case .up:
             if isAtTopEdge && currentIndex > 0 {
-                // 滚动视窗，高亮索引也减一
+                // Scrolling window, the highlighted index also decreases by one.
                 nextIndex -= 1
                 viewModel.shouldRespondToHover = false
-                viewModel.scrollByStep = 1  // 命令向上滚动一个单位
+                viewModel.scrollByStep = 1  // scroll up one step
             } else {
-                // 否则，只移动高亮索引
+                // Otherwise, only move the highlighted index
                 nextIndex -= 1
             }
         case .down:
-            //            let isLoadMoreItem = items[currentIndex].loadMore
-            // 如果当前在高亮区的最底部，并且不是整个列表的最后一项
+            // If it is at the bottom of the highlighted area and not the last item in the entire list
             if isAtBottomEdge && currentIndex < count - 1 {
-                // 滚动视窗，高亮索引也加一
                 nextIndex += 1
                 viewModel.shouldRespondToHover = false
-                viewModel.scrollByStep = -1  // 命令向下滚动一个单位
+                viewModel.scrollByStep = -1  // scroll down one step
             } else {
-                // 否则，只移动高亮索引
                 nextIndex += 1
             }
         }
 
-        // --- 循环逻辑 ---
+        // --- Circular ---
         var didCycle = false
         if nextIndex < 0 {
             if isRepeat {
@@ -512,7 +489,7 @@ extension ClipboardNSWindow {
             viewModel.scrollToRow = nextIndex
         }
 
-        // 更新高亮
+        // Update Highlight
         viewModel.hoveredIdx = nextIndex
 
     }

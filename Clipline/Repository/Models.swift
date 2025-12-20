@@ -264,7 +264,3 @@ extension ClipboardHistoryContent: FetchableRecord, MutablePersistableRecord {
         priority = row["priority"]
     }
 }
-
-
-
-// MARK:  Preferences Model

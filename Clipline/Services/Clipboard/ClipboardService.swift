@@ -11,31 +11,33 @@ import AppKit
 class ClipboardService {
     
     private let listener: ClipboardListener
-    
+    private let cleaner: ClipboardCleaner
     private let repo: ClipboardRepository
     
-    var cleanRulesGetter: () -> [NSPasteboard.CleanRule] = { [] }
+
+    
+    var cleanRulesGetter: (() -> [NSPasteboard.CleanRule])? {
+        get { cleaner.rulesGetter }
+        set { cleaner.rulesGetter = newValue ?? {[]} }
+    }
     
     init() throws {
         self.repo = try ClipboardRepository()
         self.listener = ClipboardListener(repo: repo)
+        self.cleaner = ClipboardCleaner(repo: repo)
     }
     
-    func setCheckOnCopy(onCopy: @escaping (String) -> Bool) {
-        listener.onCopy = onCopy
-    }
     
-    func setCheckOnParsed(onParsed: @escaping (NSPasteboard.ParsedResult) -> Bool) {
-        listener.onParsed = onParsed
+    func startListening() {
+        listener.listen()
+        cleaner.start()
     }
-    
-    func setCleanRulesGetter(getter: @escaping () -> [NSPasteboard.CleanRule]) {
-        cleanRulesGetter = getter
-    }
-    
-    func startListening() { listener.listen() }
     
     func shutdown() { listener.shutdown() }
+    
+    func cleanup(rules: [NSPasteboard.CleanRule] = []) {
+        cleaner.triggerNow(rules: rules)
+    }
     
     func search(keyword: String?, pageSize: Int = 30, page: Int = 0) -> (items: [ClipboardHistory], hasMore: Bool)? {
         guard
@@ -94,24 +96,27 @@ class ClipboardService {
         return items
     }
     
-    func cleanupWithRules(rules: [NSPasteboard.CleanRule] = []) {
-        if rules.isEmpty {
-            repo.cleanup(with: rules)
-            return
-        }
-        repo.cleanup(with: cleanRulesGetter())
-    }
-    
-    func cleanup(minutes: Int) {
-        if minutes < 0 {
-            _ = try? repo.truncate()
-            return
-        }
-        _ = try? repo.deleteRecords(olderThanMinutes: minutes)
-        try? repo.vacuum()
-    }
-    
-    func release() {
+    func releaseUnusedMemory() {
         repo.releaseUnusedMemory()
+    }
+}
+
+extension ClipboardService {
+    @discardableResult
+    func checkOnCopy(_ handler: @escaping (String) -> Bool) -> Self {
+        listener.onCopy = handler
+        return self
+    }
+    
+    @discardableResult
+    func checkOnParsed(_ handler: @escaping (NSPasteboard.ParsedResult) -> Bool) -> Self {
+        listener.onParsed = handler
+        return self
+    }
+    
+    @discardableResult
+    func cleanRules (_ handler: @escaping () -> [NSPasteboard.CleanRule]) -> Self {
+        cleaner.rulesGetter = handler
+        return self
     }
 }

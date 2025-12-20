@@ -184,8 +184,25 @@ extension NSPasteboard {
     }
     
     struct CleanRule {
-        let beforeAt: Date?
+        enum CompareBy: Int {
+            case before = -1
+            case after = 1
+            case none = -1000
+        }
+        
+        static let all: CleanRule = .init(time: nil, types: [], by: .none)
+        
+        let time: Date?
         let types: [NSPasteboard.PasteboardType]
+        let by: CompareBy
+        
+        
+        var isClearAll: Bool {
+            guard time == nil, types.isEmpty, by == .none else {
+                return false
+            }
+            return true
+        }
     }
     
     var isTransient: Bool {
@@ -672,10 +689,16 @@ extension ClipboardRepository {
     
     
     func cleanup(with rules: [NSPasteboard.CleanRule]) {
+        
+        if (rules.contains { $0.isClearAll }) {
+            _ = try? self.truncate()
+            return
+        }
+        
         for rule in rules {
-            guard let date = rule.beforeAt else { continue }
+            guard let date = rule.time else { continue }
             let types = rule.types.map { $0.rawValue }
-            _ = try? deleteOldRecords(types: types, olderThan: date)
+            _ = try? deleteOldRecords(types: types, olderThan: date, rule.by.rawValue)
         }
     }
 

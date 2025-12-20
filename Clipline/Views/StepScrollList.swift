@@ -224,10 +224,11 @@ struct StepScrollList<Content: View>: NSViewRepresentable {
                 nsView.contentView.bounds.origin = newOrigin
 
                 nsView.reflectScrolledClipView(nsView.contentView)
-
+                let firstVisibleIndex = Int(round(clampedY / stepHeight))
                 NSAnimationContext.endGrouping()
 
                 DispatchQueue.main.async {
+                    nsView.onScrollPositionChanged?(firstVisibleIndex)
                     binding.wrappedValue = nil
                 }
             }

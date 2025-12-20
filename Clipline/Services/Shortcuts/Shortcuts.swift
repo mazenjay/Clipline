@@ -30,24 +30,24 @@ enum Action: String, CaseIterable, Identifiable {
     var defaultShortcut: Shortcut? {
         switch self {
         case .toggleClipboardWindow:
-            return Shortcut(key: .v, modifiers: [.command, .shift], id: 1, description: "触发剪切板历史窗口")
+            return Shortcut(key: .v, modifiers: [.command, .shift], id: 1, description: "toggle clipboard histories")
         }
     }
 }
 
 protocol ShortcutsService {
     
-    /// 1. 配置初始状态（比如注册默认快捷键）
+    /// 1. Configure initial state (such as setting default shortcut keys)
     func configureDefaults()
     
-    /// 2. 注册监听器
-    /// - Parameter actionHandler: 当某个动作被触发时的回调
+    /// 2. Register Listener
+    /// - Parameter actionHandler: Callbacks when an action is triggered
     func startListening(actionHandler: @escaping (Action) -> Void)
     
-    /// 3. (可选) 暂停监听（比如用户正在录制快捷键时，或者 App 处于特殊状态）
+    /// 3. (Optional) Pause listening (for example, when the user is recording shortcut keys, or the App is in a special state)
     func pauseListening()
     
-    /// 4. (可选) 恢复监听
+    /// 4. (Optional) Resume Listening
     func resumeListening()
     
 }

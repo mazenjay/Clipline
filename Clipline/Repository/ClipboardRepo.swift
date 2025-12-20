@@ -349,15 +349,23 @@ extension ClipboardRepository {
     }
     
     @discardableResult
-    nonisolated func deleteOldRecords(types: [String], olderThan beforeAt: Date) throws -> Int {
+    nonisolated func deleteOldRecords(types: [String], olderThan time: Date, _ ops: Int = -1) throws -> Int {
         
         return try dbQueue.write { db in
-            let deleted = try ClipboardHistory
-                .filter(Column("created_at") < beforeAt)
+            var request = ClipboardHistory
                 .filter(Column("is_favorited") == false)
-                .filter(types.contains(Column("data_type")))
-                .deleteAll(db)
-            return deleted
+            
+            if ops == -1 {
+                request = request.filter(Column("created_at") < time)
+            } else if ops == 1 {
+                request = request.filter(Column("created_at") > time)
+            }
+            
+            if !types.isEmpty {
+                request = request.filter(types.contains(Column("data_type")))
+            }
+            
+            return try request.deleteAll(db)
         }
     }
     
