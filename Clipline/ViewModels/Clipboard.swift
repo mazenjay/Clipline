@@ -372,6 +372,14 @@ class ClipboardNSWindow: NSPanel {
 
         // Enter/Return
         case Key.return.rawValue:
+            
+            if let inputClient = self.firstResponder as? NSTextInputClient {
+                if inputClient.hasMarkedText() {
+                    super.sendEvent(event)
+                    return
+                }
+            }
+            
             if let hoveredItem = viewModel.hoveredItem,
                let itemId = hoveredItem.id {
                 
