@@ -19,3 +19,7 @@
 ## Features
 It records your clipboard. <small>（Specifically, go explore yourself）</small>
 
+## 🚧 Roadmap
+
+- [ ] Pinboard 
+- [ ] Pinboard Preferences
