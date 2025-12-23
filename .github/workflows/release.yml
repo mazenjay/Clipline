@@ -1,0 +1,41 @@
+name: Build & Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  release:
+    runs-on: macos-latest
+
+    steps:
+      # 1️⃣ 获取代码
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # 2️⃣ 构建 DMG
+      - name: Build DMG
+        run: |
+          chmod +x scripts/build_dmg.sh
+          ./scripts/build_dmg.sh
+
+      # 3️⃣ 获取 tag message
+      - name: Get Tag Message
+        id: tagmsg
+        run: |
+          TAG_MESSAGE=$(git tag -l --format='%(contents)' ${{ github.ref_name }})
+          echo "message<<EOF" >> $GITHUB_ENV
+          echo "$TAG_MESSAGE" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+
+      # 4️⃣ 创建 GitHub Release 并上传 DMG
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: "Clipline ${{ github.ref_name }}"
+          body: ${{ env.message }}
+          files: build/Clipline.dmg
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
