@@ -206,13 +206,14 @@ extension ClipboardViewModel {
     }
     
     func reset() {
-        histories = []
+        histories.removeAll(keepingCapacity: false)
         page = 0
         hasMore = true
         loading = false
         hoveredIdx = nil
         query = ""
         searchTask?.cancel()
+        searchTask = nil
         currentScrollTopIndex = 0
         shouldRespondToHover = false
     }
