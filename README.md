@@ -13,11 +13,15 @@
 </picture>
 
 **Requirements**: macOS 26.0+
-<small>Why? Because we use liquid glass APIs like `glassEffect`. We don't look back.</small>
+> <small>Why? Because we use liquid glass APIs like `glassEffect`.  </small>
+> <small>We don't look back.</small>
 
 
 ## Features
 It records your clipboard. <small>（Specifically, go explore yourself）</small>
+
+## Installation
+[Download from Release](https://github.com/mazenjay/Clipline/releases)
 
 ## 🚧 Roadmap
 
