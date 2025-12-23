@@ -31,13 +31,6 @@ struct PreferencesView: View {
                  }
                  .tag(Tab.history)
                  .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-            
-            Text("Todo List Placeholder")
-                .tabItem {
-                    Label("Todo", systemImage: "checklist")
-                }
-                .tag(Tab.todo)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
 
         }
         .padding()
